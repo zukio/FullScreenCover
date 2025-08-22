@@ -18,21 +18,33 @@ def get_resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
+def debug_print(*args, **kwargs):
+    """デバッグモードが有効な場合のみ出力"""
+    # main.pyからDEBUG_MODEをインポートして使用
+    try:
+        from main import DEBUG_MODE
+        if DEBUG_MODE:
+            print(*args, **kwargs)
+    except ImportError:
+        # 単体実行時はすべて出力
+        print(*args, **kwargs)
+
+
 class TrayMenu:
     def __init__(self, controller):
         try:
-            print("TrayMenu初期化開始")
+            debug_print("TrayMenu初期化開始")
             self.controller = controller
             self.icon = Icon('screensaver')
-            print("アイコンファイル読み込み中...")
+            debug_print("アイコンファイル読み込み中...")
             self.icon.icon = Image.open(get_resource_path('assets/icon.ico'))
-            print("メニュー作成中...")
+            debug_print("メニュー作成中...")
             self.regenerate_menu()
-            print("アイコンスレッド起動中...")
+            debug_print("アイコンスレッド起動中...")
             # threading.Thread(target=self.icon.run, daemon=True).start()  # 削除
-            print("TrayMenu初期化完了")
+            debug_print("TrayMenu初期化完了")
         except Exception as e:
-            print(f"TrayMenu初期化エラー: {e}")
+            debug_print(f"TrayMenu初期化エラー: {e}")
             import traceback
             traceback.print_exc()
 
@@ -52,7 +64,7 @@ class TrayMenu:
         self.controller.save_config()
         self.regenerate_menu()
         status = "有効" if not current else "無効"
-        print(f"スクリーンセーバー時のミュート設定: {status}")
+        debug_print(f"スクリーンセーバー時のミュート設定: {status}")
 
     def regenerate_menu(self):
         """メニューを再生成して現在の設定を反映"""
@@ -119,11 +131,11 @@ if ($result -eq "OK") {{
                     if os.path.exists(file_path):
                         self.controller.config['media_file'] = file_path
                         self.controller.save_config()
-                        print(f"ファイル選択: {file_path}")
+                        debug_print(f"ファイル選択: {file_path}")
                         return
 
             except Exception as e:
-                print(f"PowerShellダイアログエラー: {e}")
+                debug_print(f"PowerShellダイアログエラー: {e}")
 
             # フォールバック: 従来のtkinterダイアログ（同期実行）
             root = tk.Tk()
@@ -149,12 +161,12 @@ if ($result -eq "OK") {{
             if file_path:
                 self.controller.config['media_file'] = file_path
                 self.controller.save_config()
-                print(f"ファイル選択: {file_path}")
-
+                debug_print(f"ファイル選択: {file_path}")
+            
             root.destroy()
-
+                
         except Exception as e:
-            print(f"ファイル選択エラー: {e}")
+            debug_print(f"ファイル選択エラー: {e}")
 
     def on_quit(self, icon, item):
         self.controller.stop()
@@ -166,7 +178,7 @@ if ($result -eq "OK") {{
             if hasattr(self, 'icon'):
                 self.icon.run()
         except Exception as e:
-            print(f"Tray run error: {e}")
+            debug_print(f"Tray run error: {e}")
 
     def stop(self):
         """トレイアイコンを停止"""
@@ -174,4 +186,4 @@ if ($result -eq "OK") {{
             if hasattr(self, 'icon'):
                 self.icon.stop()
         except Exception as e:
-            print(f"Tray stop error: {e}")
+            debug_print(f"Tray stop error: {e}")

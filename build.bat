@@ -2,12 +2,13 @@
 setlocal
 
 :: --- FullScreenSaver Project Settings ---
-set PROJECT_NAME=FullScreenSaver_Debug
+set PROJECT_NAME=FullScreenSaver
 set ENTRY_SCRIPT=main.py
 
 :: --- PyInstaller Options (without --windowed for console output) ---
 set OPTIONS=--name %PROJECT_NAME% ^
  --onefile ^
+ --windowed ^
  --add-data "assets;assets" ^
  --add-data "modules;modules" ^
  --add-data "config.json;." ^

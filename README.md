@@ -29,9 +29,13 @@ Pythonで作成されたカスタムスクリーンセーバー。Windows環境�
 - **対応アプリ**: Microsoft PowerPoint
 - **条件**: スライドショーモード + CPU使用率10%以上（動画スライド再生中）
 
-## インストール
+## Installation
 
-## 使い方
+Release版のバイナリは [Releases](https://github.com/zukio/FullScreenSaver/releases/) からダウンロードできます。
+
+## 使用方法
+
+![FullScreenSaver GUI Interface](assets/image.png)
 
 ### GUIモード：タスクトレイメニュー
 
