@@ -1,0 +1,8 @@
+{
+  "python.analysis.extraPaths": ["./venv/Lib/site-packages/win32", "./venv/Lib/site-packages/win32/lib", "./venv/Lib/site-packages/Pythonwin"],
+  "python.analysis.stubPath": "./venv/Lib/site-packages",
+  "python.linting.pylintArgs": ["--extension-pkg-whitelist=win32gui,win32con,win32api"],
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingModuleSource": "none"
+  }
+}
