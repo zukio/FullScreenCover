@@ -39,7 +39,7 @@ Pythonで作成されたカスタムスクリーンセーバー。Windows環境�
 
 - **インターバル調整**: +10秒/-10秒、または定型値（30秒、60秒、2分、5分、10分）
 - **メディアファイル選択**: ファイルダイアログからメディアファイルを選択
-- **ミュート設定切替**: 🔇/🔊 アイコンでミュート機能のON/OFF
+- **ミュート設定切替**: スクリーンセーバー起動時に自動ミュートする機能のON/OFF
 - **アプリケーション終了**: 安全な終了処理
 
 ### 対応ファイル形式
@@ -47,12 +47,11 @@ Pythonで作成されたカスタムスクリーンセーバー。Windows環境�
 #### 画像
 
 - PNG, JPG, JPEG, BMP
-- フルスクリーン表示、アスペクト比保持
+- フルスクリーン表示
 
 #### 動画
 
 - MP4, AVI, MOV
-- OpenCVによる高品質再生
 - 音声付き動画対応
 
 ## 開発
@@ -67,35 +66,35 @@ Pythonで作成されたカスタムスクリーンセーバー。Windows環境�
 
 1. **リポジトリのクローン**
 
-```bash
-git clone <repository-url>
-cd FullScreenSaver
-```
+  ```bash
+  git clone <repository-url>
+  cd FullScreenSaver
+  ```
 
 2. **仮想環境の作成と有効化**
 
-```bash
-python -m venv venv
-venv\Scripts\activate
-```
+  ```bash
+  python -m venv venv
+  venv\Scripts\activate
+  ```
 
 3. **依存関係のインストール**
 
-```bash
-pip install -r requirements.txt
-```
+  ```bash
+  pip install -r requirements.txt
+  ```
 
 4. **pywin32の設定**
 
-```bash
-python venv\Scripts\pywin32_postinstall.py -install
-```
+  ```bash
+  python venv\Scripts\pywin32_postinstall.py -install
+  ```
 
 5. **アプリケーション実行**
-
-```bash
-python main.py
-```
+  
+  ```bash
+  python main.py
+  ```
 
 ### プロジェクト構造
 
