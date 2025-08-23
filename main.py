@@ -32,6 +32,7 @@ class ScreensaverController:
         print("TrayMenu初期化開始")
         self.tray = TrayMenu(self)
         self.running = True
+        self.stopping = False  # 停止処理フラグを追加
         self.showing = False
         self.monitor_thread = threading.Thread(
             target=self.monitor, daemon=True)
@@ -47,13 +48,18 @@ class ScreensaverController:
             self.config = {
                 'interval': 5,
                 'media_file': get_resource_path('assets/image.png'),
-                'mute_on_screensaver': True
+                'mute_on_screensaver': True,
+                'suppress_during_video': True
             }
             self.save_config()
 
         # デフォルト値の設定
         if 'mute_on_screensaver' not in self.config:
             self.config['mute_on_screensaver'] = True
+            self.save_config()
+
+        if 'suppress_during_video' not in self.config:
+            self.config['suppress_during_video'] = True
             self.save_config()
 
     def save_config(self):
@@ -94,10 +100,17 @@ class ScreensaverController:
         while self.running:
             try:
                 idle = get_idle_duration()
-                suppress = should_suppress_screensaver()
+
+                # 動画抑制設定が有効な場合のみチェック
+                suppress = False
+                if self.config.get('suppress_during_video', True):
+                    suppress = should_suppress_screensaver()
+
                 mute_setting = self.config.get('mute_on_screensaver', False)
+                video_suppress_setting = self.config.get(
+                    'suppress_during_video', True)
                 print(
-                    f"idle={idle:.1f}, interval={self.config['interval']}, suppress={suppress}, showing={self.showing}, mute={mute_setting}")
+                    f"idle={idle:.1f}, interval={self.config['interval']}, suppress={suppress}, showing={self.showing}, mute={mute_setting}, video_suppress={video_suppress_setting}")
 
                 if idle > self.config['interval'] and not suppress and not self.showing:
                     print("スクリーンセーバー表示開始")
@@ -118,10 +131,20 @@ class ScreensaverController:
         print("モニタリング終了")
 
     def stop(self):
+        if self.stopping:
+            return  # 既に停止処理中の場合は何もしない
+
         print("停止処理開始")
+        self.stopping = True
         self.running = False
-        if hasattr(self, 'tray') and self.tray:
-            self.tray.stop()
+
+        try:
+            if hasattr(self, 'tray') and self.tray:
+                self.tray.stop()
+        except Exception as e:
+            print(f"トレイ停止エラー: {e}")
+
+        print("停止処理完了")
 
     def run(self):
         try:

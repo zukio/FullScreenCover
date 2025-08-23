@@ -66,10 +66,23 @@ class TrayMenu:
         status = "有効" if not current else "無効"
         debug_print(f"スクリーンセーバー時のミュート設定: {status}")
 
+    def toggle_video_suppress_setting(self, icon, item):
+        """動画抑制設定の切り替え"""
+        current = self.controller.config.get('suppress_during_video', True)
+        self.controller.config['suppress_during_video'] = not current
+        self.controller.save_config()
+        self.regenerate_menu()
+        status = "有効" if not current else "無効"
+        debug_print(f"動画再生中の抑制設定: {status}")
+
     def regenerate_menu(self):
         """メニューを再生成して現在の設定を反映"""
         mute_enabled = self.controller.config.get('mute_on_screensaver', True)
-        mute_text = "🔇 ミュート: 有効" if mute_enabled else "🔊 ミュート: 無効"
+        mute_text = "🔇 ミュート: ☑ 有効" if mute_enabled else "🔊 ミュート: ☐ 無効"
+
+        video_suppress_enabled = self.controller.config.get(
+            'suppress_during_video', True)
+        video_suppress_text = "🎬 動画再生中は抑制: ☑ 有効" if video_suppress_enabled else "🎬 動画再生中は抑制: ☐ 無効"
 
         self.icon.menu = Menu(
             MenuItem(
@@ -86,6 +99,7 @@ class TrayMenu:
             ),
             MenuItem('画像/動画を選ぶ', self.choose_file),
             MenuItem(mute_text, self.toggle_mute_setting),
+            MenuItem(video_suppress_text, self.toggle_video_suppress_setting),
             MenuItem('終了', self.on_quit)
         )
 
@@ -115,6 +129,8 @@ $OpenFileDialog.Title = "スクリーンセーバー用ファイルを選択"
 $result = $OpenFileDialog.ShowDialog()
 if ($result -eq "OK") {{
     Write-Output $OpenFileDialog.FileName
+}} else {{
+    Write-Output "CANCELLED"
 }}
 '''.format(initial_dir=get_resource_path('assets').replace('\\', '\\\\'))
 
@@ -127,11 +143,14 @@ if ($result -eq "OK") {{
                 )
 
                 if result.returncode == 0 and result.stdout.strip():
-                    file_path = result.stdout.strip()
-                    if os.path.exists(file_path):
-                        self.controller.config['media_file'] = file_path
+                    output = result.stdout.strip()
+                    if output != "CANCELLED" and os.path.exists(output):
+                        self.controller.config['media_file'] = output
                         self.controller.save_config()
-                        debug_print(f"ファイル選択: {file_path}")
+                        debug_print(f"ファイル選択: {output}")
+                        return
+                    elif output == "CANCELLED":
+                        debug_print("ファイル選択がキャンセルされました")
                         return
 
             except Exception as e:
@@ -158,19 +177,36 @@ if ($result -eq "OK") {{
                 initialdir=get_resource_path('assets')
             )
 
-            if file_path:
+            # ファイルが選択された場合のみ保存
+            if file_path and file_path.strip():
                 self.controller.config['media_file'] = file_path
                 self.controller.save_config()
                 debug_print(f"ファイル選択: {file_path}")
-            
+            else:
+                debug_print("ファイル選択がキャンセルされました")
+
             root.destroy()
-                
+
         except Exception as e:
             debug_print(f"ファイル選択エラー: {e}")
+            # エラーが発生しても致命的エラーとして扱わない
 
     def on_quit(self, icon, item):
-        self.controller.stop()
-        self.icon.stop()
+        """アプリケーション終了処理"""
+        debug_print("終了メニューが選択されました")
+        try:
+            # コントローラーを先に停止
+            if hasattr(self, 'controller') and self.controller:
+                self.controller.stop()
+
+            # トレイアイコンを停止
+            if hasattr(self, 'icon') and self.icon:
+                self.icon.stop()
+        except Exception as e:
+            debug_print(f"終了処理エラー: {e}")
+            # 強制終了
+            import sys
+            sys.exit(0)
 
     def run(self):
         """トレイアイコンを実行（ブロッキング）"""
@@ -183,7 +219,13 @@ if ($result -eq "OK") {{
     def stop(self):
         """トレイアイコンを停止"""
         try:
-            if hasattr(self, 'icon'):
+            debug_print("TrayMenu停止処理開始")
+            if hasattr(self, 'icon') and self.icon:
                 self.icon.stop()
+            debug_print("TrayMenu停止処理完了")
         except Exception as e:
             debug_print(f"Tray stop error: {e}")
+            # 強制的にスレッドを終了
+            import sys
+            import os
+            os._exit(0)

@@ -44,6 +44,7 @@ Release版のバイナリは [Releases](https://github.com/zukio/FullScreenSaver
 - **インターバル調整**: +10秒/-10秒、または定型値（30秒、60秒、2分、5分、10分）
 - **メディアファイル選択**: ファイルダイアログからメディアファイルを選択
 - **ミュート設定切替**: スクリーンセーバー起動時に自動ミュートする機能のON/OFF
+- **動画抑制設定切替**: 動画再生中のスクリーンセーバー抑制機能のON/OFF
 - **アプリケーション終了**: 安全な終了処理
 
 ### 対応ファイル形式
@@ -151,7 +152,8 @@ FullScreenSaver/
 {
   "interval": 300,
   "media_file": "path/to/your/image_or_video.png",
-  "mute_on_screensaver": true
+  "mute_on_screensaver": true,
+  "suppress_during_video": true
 }
 ```
 
