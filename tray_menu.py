@@ -82,7 +82,7 @@ class TrayMenu:
 
         video_suppress_enabled = self.controller.config.get(
             'suppress_during_video', True)
-        video_suppress_text = "🎬 動画再生中は抑制: ☑ 有効" if video_suppress_enabled else "🎬 動画再生中は抑制: ☐ 無効"
+        video_suppress_text = "🎬 動画再生中: ☑ 待機する" if video_suppress_enabled else "🎬 動画再生中: ☐ 待機しない"
 
         self.icon.menu = Menu(
             MenuItem(
