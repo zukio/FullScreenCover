@@ -73,6 +73,18 @@ def show_image(image_path):
         if not closed['flag']:
             closed['flag'] = True
             try:
+                # グローバルフックリスナーを停止
+                if hasattr(close, 'mouse_listener'):
+                    try:
+                        close.mouse_listener.stop()
+                    except:
+                        pass
+                if hasattr(close, 'keyboard_listener'):
+                    try:
+                        close.keyboard_listener.stop()
+                    except:
+                        pass
+
                 root.quit()  # mainloopを終了
                 root.destroy()
             except Exception as e:
@@ -92,7 +104,10 @@ def show_image(image_path):
     def mouse_hook():
         if mouse:
             try:
-                with mouse.Listener(on_move=global_close, on_click=global_close, on_scroll=global_close) as listener:
+                listener = mouse.Listener(
+                    on_move=global_close, on_click=global_close, on_scroll=global_close)
+                close.mouse_listener = listener  # リスナーを保存
+                with listener:
                     listener.join()
             except Exception as e:
                 print(f"mouse_hook error: {e}")
@@ -100,7 +115,9 @@ def show_image(image_path):
     def keyboard_hook():
         if keyboard:
             try:
-                with keyboard.Listener(on_press=global_close) as listener:
+                listener = keyboard.Listener(on_press=global_close)
+                close.keyboard_listener = listener  # リスナーを保存
+                with listener:
                     listener.join()
             except Exception as e:
                 print(f"keyboard_hook error: {e}")
@@ -110,8 +127,8 @@ def show_image(image_path):
     if keyboard:
         Thread(target=keyboard_hook, daemon=True).start()
 
-    # 自動終了タイマー（10秒）
-    root.after(10000, close)
+    # 自動終了タイマーを削除（ユーザー操作のみで終了するように変更）
+    # root.after(10000, close)  # この自動終了が問題の原因
 
     try:
         root.mainloop()
@@ -149,7 +166,9 @@ def show_video(video_path):
     def mouse_hook():
         if mouse:
             try:
-                with mouse.Listener(on_move=global_close, on_click=global_close, on_scroll=global_close) as listener:
+                listener = mouse.Listener(
+                    on_move=global_close, on_click=global_close, on_scroll=global_close)
+                with listener:
                     listener.join()
             except Exception as e:
                 print(f"video mouse_hook error: {e}")
@@ -157,7 +176,8 @@ def show_video(video_path):
     def keyboard_hook():
         if keyboard:
             try:
-                with keyboard.Listener(on_press=global_close) as listener:
+                listener = keyboard.Listener(on_press=global_close)
+                with listener:
                     listener.join()
             except Exception as e:
                 print(f"video keyboard_hook error: {e}")

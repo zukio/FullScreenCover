@@ -75,14 +75,54 @@ class TrayMenu:
         status = "有効" if not current else "無効"
         debug_print(f"動画再生中の抑制設定: {status}")
 
+    def toggle_presentation_mode_setting(self, icon, item):
+        """プレゼンテーションモード設定の切り替え（UI上では一括設定として動作）"""
+        current = self.controller.config.get('enable_presentation_mode', False)
+        self.controller.config['enable_presentation_mode'] = not current
+        self.controller.save_config()
+        self.regenerate_menu()
+        status = "有効" if not current else "無効"
+        debug_print(f"プレゼンテーションモード設定: {status}")
+
+        # 有効になった場合、設定されている機能の詳細をログ出力
+        if not current:  # 有効になった場合
+            features = self.controller.config.get('presentation_features', {})
+            enabled_features = []
+            if features.get('disable_screensaver', True):
+                enabled_features.append("スクリーンセーバー無効化")
+            if features.get('prevent_sleep', True):
+                enabled_features.append("スリープ防止")
+            if features.get('block_notifications', False):
+                enabled_features.append("通知ブロック")
+            if features.get('replace_wallpaper', False):
+                enabled_features.append("壁紙置換")
+
+            if enabled_features:
+                debug_print(f"  有効な機能: {', '.join(enabled_features)}")
+            debug_print(
+                "  ※ 高度な機能設定はconfig.jsonの'presentation_features'で個別制御可能")
+
+    def toggle_presentation_mode_silent_setting(self, icon=None, item=None):
+        """通知設定の切り替え"""
+        current = self.controller.config.get('presentation_mode_silent', True)
+        self.controller.config['presentation_mode_silent'] = not current
+        self.controller.save_config()
+        self.regenerate_menu()
+        status = "通知ブロック" if not current else "通知あり"
+        debug_print(f"通知設定: {status}")
+
     def regenerate_menu(self):
         """メニューを再生成して現在の設定を反映"""
         mute_enabled = self.controller.config.get('mute_on_screensaver', True)
-        mute_text = "🔇 ミュート: ☑ 有効" if mute_enabled else "🔊 ミュート: ☐ 無効"
+        mute_text = "🔇 遮蔽時スピーカー: ☑ ミュート" if mute_enabled else "🔊 遮蔽時スピーカー: ☐ ミュート（していません）"
 
         video_suppress_enabled = self.controller.config.get(
             'suppress_during_video', True)
-        video_suppress_text = "🎬 動画再生中: ☑ 待機する" if video_suppress_enabled else "🎬 動画再生中: ☐ 待機しない"
+        video_suppress_text = "🎬 動画再生中: ☑ 待機する" if video_suppress_enabled else "🎬 動画再生中: ☐ 待機する（していません）"
+
+        presentation_enabled = self.controller.config.get(
+            'enable_presentation_mode', True)
+        presentation_enabled_text = "🔕 通知やスリープ: ☑ ブロック" if presentation_enabled else "🔔 通知やスリープ: ☐ ブロック（していません）"
 
         self.icon.menu = Menu(
             MenuItem(
@@ -100,6 +140,8 @@ class TrayMenu:
             MenuItem('画像/動画を選ぶ', self.choose_file),
             MenuItem(mute_text, self.toggle_mute_setting),
             MenuItem(video_suppress_text, self.toggle_video_suppress_setting),
+            MenuItem(presentation_enabled_text,
+                     self.toggle_presentation_mode_setting),
             MenuItem('終了', self.on_quit)
         )
 
@@ -112,10 +154,6 @@ class TrayMenu:
         try:
             # Windows標準のファイルダイアログを使用
             try:
-                # win32guiを使ったWindows標準ダイアログ
-                import win32gui
-                import win32con
-                from tkinter import filedialog as fd
                 import subprocess
                 import os
 

@@ -6,6 +6,7 @@ import time
 from modules.utils.path_utils import get_idle_duration
 from modules.lock import should_suppress_screensaver
 from modules.audio_devices import VolumeController
+from modules.presentation_mode import get_presentation_controller
 from tray_menu import TrayMenu
 from screensaver import show_screensaver
 
@@ -29,6 +30,13 @@ class ScreensaverController:
         self.load_config()
         print("VolumeController初期化開始")
         self.volume_controller = VolumeController()
+        print("PresentationModeController初期化開始")
+        # サイレントモード設定を取得
+        silent_mode = self.config.get('presentation_mode_silent', False)
+        # 高度な機能設定を取得
+        features_config = self.config.get('presentation_features', {})
+        self.presentation_controller = get_presentation_controller(
+            silent_mode=silent_mode, features_config=features_config)
         print("TrayMenu初期化開始")
         self.tray = TrayMenu(self)
         self.running = True
@@ -49,7 +57,15 @@ class ScreensaverController:
                 'interval': 5,
                 'media_file': get_resource_path('assets/image.png'),
                 'mute_on_screensaver': True,
-                'suppress_during_video': True
+                'suppress_during_video': True,
+                'enable_presentation_mode': False,
+                'presentation_mode_silent': True,
+                'presentation_features': {
+                    'disable_screensaver': True,
+                    'prevent_sleep': True,
+                    'block_notifications': True,
+                    'replace_wallpaper': False
+                }
             }
             self.save_config()
 
@@ -62,6 +78,23 @@ class ScreensaverController:
             self.config['suppress_during_video'] = True
             self.save_config()
 
+        if 'enable_presentation_mode' not in self.config:
+            self.config['enable_presentation_mode'] = False
+            self.save_config()
+
+        if 'presentation_mode_silent' not in self.config:
+            self.config['presentation_mode_silent'] = True
+            self.save_config()
+
+        if 'presentation_features' not in self.config:
+            self.config['presentation_features'] = {
+                'disable_screensaver': True,
+                'prevent_sleep': True,
+                'block_notifications': True,
+                'replace_wallpaper': False
+            }
+            self.save_config()
+
     def save_config(self):
         try:
             with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
@@ -72,7 +105,14 @@ class ScreensaverController:
     def show_screensaver_with_mute(self, media_file):
         """ミュート機能付きスクリーンセーバー表示"""
         muted = False
+        presentation_enabled = False
         try:
+            # プレゼンテーションモード設定が有効な場合、プレゼンテーションモードを有効にする
+            if self.config.get('enable_presentation_mode', False):
+                presentation_enabled = self.presentation_controller.enable_presentation_mode()
+                if presentation_enabled:
+                    print("プレゼンテーションモードを有効にしました")
+
             # ミュート設定が有効な場合、音声をミュート
             if self.config.get('mute_on_screensaver', False):
                 muted = self.volume_controller.mute_for_screensaver()
@@ -95,6 +135,11 @@ class ScreensaverController:
             if muted and self.config.get('mute_on_screensaver', False):
                 self.volume_controller.unmute_after_screensaver()
 
+            # プレゼンテーションモードを無効にする
+            if presentation_enabled and self.config.get('enable_presentation_mode', False):
+                self.presentation_controller.disable_presentation_mode()
+                print("プレゼンテーションモードを無効にしました")
+
     def monitor(self):
         print("モニタリング開始")
         while self.running:
@@ -109,8 +154,10 @@ class ScreensaverController:
                 mute_setting = self.config.get('mute_on_screensaver', False)
                 video_suppress_setting = self.config.get(
                     'suppress_during_video', True)
+                presentation_setting = self.config.get(
+                    'enable_presentation_mode', False)
                 print(
-                    f"idle={idle:.1f}, interval={self.config['interval']}, suppress={suppress}, showing={self.showing}, mute={mute_setting}, video_suppress={video_suppress_setting}")
+                    f"idle={idle:.1f}, interval={self.config['interval']}, suppress={suppress}, showing={self.showing}, mute={mute_setting}, video_suppress={video_suppress_setting}, presentation={presentation_setting}")
 
                 if idle > self.config['interval'] and not suppress and not self.showing:
                     print("スクリーンセーバー表示開始")
@@ -137,6 +184,15 @@ class ScreensaverController:
         print("停止処理開始")
         self.stopping = True
         self.running = False
+
+        try:
+            # プレゼンテーションモードを無効にする
+            if hasattr(self, 'presentation_controller') and self.presentation_controller:
+                if self.presentation_controller.is_presentation_mode_active():
+                    self.presentation_controller.disable_presentation_mode()
+                    print("プレゼンテーションモードを無効にしました")
+        except Exception as e:
+            print(f"プレゼンテーションモード停止エラー: {e}")
 
         try:
             if hasattr(self, 'tray') and self.tray:

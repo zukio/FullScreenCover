@@ -1,8 +1,8 @@
 @echo off
 setlocal
 
-:: --- FullScreenSaver Project Settings ---
-set PROJECT_NAME=FullScreenSaver
+:: --- FullScreenCover Project Settings ---
+set PROJECT_NAME=FullScreenCover
 set ENTRY_SCRIPT=main.py
 
 :: --- PyInstaller Options (without --windowed for console output) ---

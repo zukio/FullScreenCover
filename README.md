@@ -1,4 +1,4 @@
-# FullScreenSaver
+# FullScreenCover
 
 Pythonで作成されたカスタムスクリーンセーバー。Windows環境でフルスクリーンモード実行中にスクリーンセーバーを表示できます。
 
@@ -31,11 +31,11 @@ Pythonで作成されたカスタムスクリーンセーバー。Windows環境�
 
 ## Installation
 
-Release版のバイナリは [Releases](https://github.com/zukio/FullScreenSaver/releases/) からダウンロードできます。
+Release版のバイナリは [Releases](https://github.com/zukio/FullScreenCover/releases/) からダウンロードできます。
 
 ## 使用方法
 
-![FullScreenSaver GUI Interface](assets/image.png)
+![FullScreenCover GUI Interface](assets/image.png)
 
 ### GUIモード：タスクトレイメニュー
 
@@ -73,7 +73,7 @@ Release版のバイナリは [Releases](https://github.com/zukio/FullScreenSaver
 
   ```bash
   git clone <repository-url>
-  cd FullScreenSaver
+  cd FullScreenCover
   ```
 
 2. **仮想環境の作成と有効化**
@@ -104,7 +104,7 @@ Release版のバイナリは [Releases](https://github.com/zukio/FullScreenSaver
 ### プロジェクト構造
 
 ```
-FullScreenSaver/
+FullScreenCover/
 ├── main.py                    # メインアプリケーション
 ├── screensaver.py            # スクリーンセーバー表示ロジック
 ├── tray_menu.py              # タスクトレイメニュー
