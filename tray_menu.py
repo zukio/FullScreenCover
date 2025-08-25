@@ -36,12 +36,12 @@ class TrayMenu:
             debug_print("TrayMenu初期化開始")
             self.controller = controller
             self.icon = Icon('screensaver')
+            self.is_paused = False  # 一時停止状態を管理する変数
             debug_print("アイコンファイル読み込み中...")
             self.icon.icon = Image.open(get_resource_path('assets/icon.ico'))
             debug_print("メニュー作成中...")
             self.regenerate_menu()
             debug_print("アイコンスレッド起動中...")
-            # threading.Thread(target=self.icon.run, daemon=True).start()  # 削除
             debug_print("TrayMenu初期化完了")
         except Exception as e:
             debug_print(f"TrayMenu初期化エラー: {e}")
@@ -111,18 +111,34 @@ class TrayMenu:
         status = "通知ブロック" if not current else "通知あり"
         debug_print(f"通知設定: {status}")
 
+    def toggle_pause(self, icon, item):
+        """一時停止/再開の切り替え"""
+        self.is_paused = not self.is_paused
+        status = "一時停止中" if self.is_paused else "再開中"
+        debug_print(f"アプリの状態: {status}")
+
+        # 一時停止中はコントローラーの動作を停止
+        if self.is_paused:
+            self.controller.pause()  # pause メソッドを呼び出す
+        else:
+            self.controller.resume()  # resume メソッドを呼び出す
+
+        self.regenerate_menu()
+
     def regenerate_menu(self):
         """メニューを再生成して現在の設定を反映"""
         mute_enabled = self.controller.config.get('mute_on_screensaver', True)
-        mute_text = "🔇 遮蔽時スピーカー: ☑ ミュート" if mute_enabled else "🔊 遮蔽時スピーカー: ☐ ミュート（していません）"
+        mute_text = "☑ 遮蔽時はミュートする" if mute_enabled else "☐ 遮蔽時はミュートする（していません）"
 
         video_suppress_enabled = self.controller.config.get(
             'suppress_during_video', True)
-        video_suppress_text = "🎬 動画再生中: ☑ 待機する" if video_suppress_enabled else "🎬 動画再生中: ☐ 待機する（していません）"
+        video_suppress_text = "☑ 動画再生中は待機" if video_suppress_enabled else "☐ 動画再生中は待機（していません）"
 
         presentation_enabled = self.controller.config.get(
             'enable_presentation_mode', True)
-        presentation_enabled_text = "🔕 通知やスリープ: ☑ ブロック" if presentation_enabled else "🔔 通知やスリープ: ☐ ブロック（していません）"
+        presentation_enabled_text = "☑ 通知やスリープをブロック" if presentation_enabled else "☐ 通知やスリープをブロック（していません）"
+
+        pause_text = "⏸ 一時停止" if not self.is_paused else "▶ 再開（停止中）"
 
         self.icon.menu = Menu(
             MenuItem(
@@ -142,6 +158,7 @@ class TrayMenu:
             MenuItem(video_suppress_text, self.toggle_video_suppress_setting),
             MenuItem(presentation_enabled_text,
                      self.toggle_presentation_mode_setting),
+            MenuItem(pause_text, self.toggle_pause),
             MenuItem('終了', self.on_quit)
         )
 

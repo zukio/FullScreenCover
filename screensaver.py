@@ -38,6 +38,8 @@ def show_image(image_path):
     # 毎回新しいtkinterインスタンスを作成
     root = tk.Tk()
     root.attributes('-fullscreen', True)
+    root.attributes('-topmost', True)  # 最前面表示
+    root.focus_force()                 # フォーカス取得
     root.config(cursor='none')
     root.configure(bg='black')
 
@@ -152,6 +154,8 @@ def show_video(video_path):
     cv2.namedWindow('screensaver', cv2.WND_PROP_FULLSCREEN)
     cv2.setWindowProperty(
         'screensaver', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    # 最前面表示を設定
+    cv2.setWindowProperty('screensaver', cv2.WND_PROP_TOPMOST, 1)
 
     # グローバルフック用のフラグ
     closed = {'flag': False}
