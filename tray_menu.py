@@ -144,7 +144,7 @@ class TrayMenu:
             ),
             MenuItem('画像/動画を選ぶ', self.choose_file),
             MenuItem(mute_text, self.toggle_mute_setting),
-            MenuItem(video_suppress_text, self.toggle_video_suppress_setting),
+            # MenuItem(video_suppress_text, self.toggle_video_suppress_setting),
             MenuItem(presentation_enabled_text,
                      self.toggle_presentation_mode_setting),
             # MenuItem(pause_text, self.toggle_pause),

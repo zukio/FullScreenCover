@@ -21,7 +21,22 @@ def get_resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
-CONFIG_PATH = get_resource_path('config.json')
+def get_config_path():
+    """Get config.json path from executable directory, not from _MEIPASS"""
+    try:
+        # PyInstallerの場合、実行ファイルのディレクトリを取得
+        if hasattr(sys, '_MEIPASS'):
+            # 実行ファイルのディレクトリを取得
+            exe_dir = os.path.dirname(sys.executable)
+        else:
+            # 開発環境では現在のディレクトリ
+            exe_dir = os.path.abspath(".")
+        return os.path.join(exe_dir, 'config.json')
+    except Exception:
+        return os.path.join(os.path.abspath("."), 'config.json')
+
+
+CONFIG_PATH = get_config_path()
 
 
 class ScreensaverController:
@@ -66,7 +81,7 @@ class ScreensaverController:
         except FileNotFoundError:
             # デフォルト設定
             self.config = {
-                'interval': 5,
+                'interval': 60,
                 'media_file': get_resource_path('assets/image.png'),
                 'mute_on_screensaver': True,
                 'suppress_during_video': True,

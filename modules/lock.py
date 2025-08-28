@@ -12,6 +12,14 @@ try:
 except ImportError:
     WIN32_AVAILABLE = False
 
+# PowerPoint COM API検出をインポート
+try:
+    from .powerpoint_detection import is_powerpoint_video_playing
+    POWERPOINT_COM_AVAILABLE = True
+except ImportError:
+    POWERPOINT_COM_AVAILABLE = False
+    print("PowerPoint COM検出が利用できません")
+
 # CPU測定結果のキャッシュ
 _video_playing_cache = {
     'timestamp': 0,
@@ -183,6 +191,13 @@ def is_powerpoint_slideshow_running():
         return False
 
 
+def is_powerpoint_high_cpu():
+    """PowerPointのCPU使用率が高いかどうかを判定"""
+    cpu_usage = get_cpu_usage_for_process('powerpnt')
+    print(f"PowerPoint CPU使用率: {cpu_usage:.1f}%")
+    return cpu_usage > 10  # 10%以上をしきい値とする
+
+
 def is_video_playing():
     """動画が実際に再生中かどうかを判定（より確実な検出 + キャッシュ）"""
     global _video_playing_cache
@@ -328,13 +343,40 @@ def should_suppress_screensaver(suppress_large_window=False):
             print("ブラウザ動画サービス（フルスクリーン）検出 -> スクリーンセーバー抑制")
             return True
 
-        # 4. PowerPointのスライドショーでCPU使用率が高い場合
+        # 4. PowerPointのスライドショーで動画再生中の場合（改良版：より正確な判定）
         if is_powerpoint_slideshow_running():
-            if is_powerpoint_high_cpu():
-                print("PowerPoint（スライドショー + 高CPU）検出 -> スクリーンセーバー抑制")
-                return True
+            print("PowerPointスライドショーが実行中です")
+
+            # PowerPoint COM APIで動画再生状態を確認
+            if POWERPOINT_COM_AVAILABLE:
+                try:
+                    com_result = is_powerpoint_video_playing(debug_mode=True)
+                    if com_result:
+                        print("PowerPoint（スライドショー + 動画再生中）検出 -> スクリーンセーバー抑制")
+                        return True
+                    else:
+                        print("PowerPointスライドショーは実行中ですが、動画は再生中ではないため抑制しません")
+                        return False
+                except Exception as e:
+                    print(f"PowerPoint COM API検出エラー: {e}")
+                    print("フォールバック: CPU使用率ベース判定を実行")
+
+                    # フォールバック: CPU使用率ベース判定
+                    if is_powerpoint_high_cpu():
+                        print("PowerPoint（スライドショー + CPU高使用率）検出 -> スクリーンセーバー抑制")
+                        return True
+                    else:
+                        print("PowerPointスライドショーは実行中ですが、CPU使用率が低いため抑制しません")
+                        return False
             else:
-                print("PowerPoint（スライドショー）検出されましたが、CPU使用率が低いため抑制しません")
+                # COM APIが利用できない場合はCPU使用率で判定
+                print("PowerPoint COM API利用不可、CPU使用率ベース判定を実行")
+                if is_powerpoint_high_cpu():
+                    print("PowerPoint（スライドショー + CPU高使用率）検出 -> スクリーンセーバー抑制")
+                    return True
+                else:
+                    print("PowerPointスライドショーは実行中ですが、CPU使用率が低いため抑制しません")
+                    return False
 
         return False
 
