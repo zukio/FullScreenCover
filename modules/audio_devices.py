@@ -1,3 +1,5 @@
+import threading
+
 try:
     import pyaudio
     PYAUDIO_AVAILABLE = True
@@ -5,8 +7,10 @@ except ImportError:
     PYAUDIO_AVAILABLE = False
 
 try:
-    from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+    from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume, ISimpleAudioVolume
+    from pycaw.constants import AudioSessionStateActive
     from comtypes import CLSCTX_ALL
+    import comtypes
     import ctypes
     PYCAW_AVAILABLE = True
 except ImportError:
@@ -53,6 +57,9 @@ class VolumeController:
         self.volume_interface = None
         self.previous_mute_state = None
         self.previous_volume = None
+        # 追加: セッション復元用
+        self._touched_sessions = []  # [(session, prev_mute, prev_vol)]
+        self._com_initialized = False
         self._initialize()
 
     def _initialize(self):
@@ -62,6 +69,13 @@ class VolumeController:
             return
 
         try:
+            # 追加: COM初期化（多重初期化を避ける）
+            try:
+                comtypes.CoInitialize()
+                self._com_initialized = True
+            except Exception:
+                # 既に初期化済みなどは無視
+                pass
             # デフォルトの音声出力デバイスを取得
             devices = AudioUtilities.GetSpeakers()
             interface = devices.Activate(
@@ -71,6 +85,24 @@ class VolumeController:
         except Exception as e:
             print(f"音量制御初期化エラー: {e}")
             self.volume_interface = None
+
+    def __del__(self):
+        # 追加: COM後始末
+        try:
+            if self._com_initialized:
+                comtypes.CoUninitialize()
+        except Exception:
+            pass
+
+    # 追加: アクティブな全セッションを取得
+    def _get_active_sessions(self):
+        try:
+            sessions = AudioUtilities.GetAllSessions()
+            # AudioSessionStateActiveの代わりに定数値1を使用
+            return [s for s in sessions if s.State == 1 and s.SimpleAudioVolume is not None]
+        except Exception as e:
+            print(f"セッション取得エラー: {e}")
+            return []
 
     def get_mute_state(self):
         """現在のミュート状態を取得"""
@@ -125,6 +157,15 @@ class VolumeController:
 
         self.previous_mute_state = self.get_mute_state()
         self.previous_volume = self.get_volume()
+        # 追加: セッション状態も保存
+        self._touched_sessions = []
+        for s in self._get_active_sessions():
+            try:
+                prev_m = s.SimpleAudioVolume.GetMute()
+                prev_v = s.SimpleAudioVolume.GetMasterVolume()
+                self._touched_sessions.append((s, prev_m, prev_v))
+            except Exception:
+                pass
         print(
             f"音量状態保存: 音量={self.previous_volume:.2f}, ミュート={self.previous_mute_state}")
 
@@ -136,6 +177,14 @@ class VolumeController:
             self.set_volume(self.previous_volume)
         print(
             f"音量状態復元: 音量={self.previous_volume:.2f}, ミュート={self.previous_mute_state}")
+        # 追加: セッションの復元
+        for s, prev_m, prev_v in self._touched_sessions:
+            try:
+                s.SimpleAudioVolume.SetMute(prev_m, None)
+                s.SimpleAudioVolume.SetMasterVolume(prev_v, None)
+            except Exception:
+                pass
+        self._touched_sessions = []
 
         # 復元後は状態をクリア
         self.previous_mute_state = None
@@ -144,10 +193,21 @@ class VolumeController:
     def mute_for_screensaver(self):
         """スクリーンセーバー用にミュート（状態を保存してからミュート）"""
         self.save_current_state()
-        success = self.set_mute(True)
-        if success:
-            print("スクリーンセーバー: 音声をミュートしました")
-        return success
+        ok = self.set_mute(True)
+        if not ok or not self.get_mute_state():
+            # フォールバック1: エンドポイント音量を0へ
+            v_ok = self.set_volume(0.0)
+            if not v_ok:
+                print("エンドポイント音量0化に失敗")
+        # フォールバック2: アクティブ・セッションもミュート/0化
+        for s in self._get_active_sessions():
+            try:
+                s.SimpleAudioVolume.SetMute(True, None)
+                s.SimpleAudioVolume.SetMasterVolume(0.0, None)
+            except Exception:
+                pass
+        print("スクリーンセーバー: 音声をミュート（多段フォールバック適用）")
+        return True
 
     def unmute_after_screensaver(self):
         """スクリーンセーバー終了後にミュート解除（元の状態に復元）"""

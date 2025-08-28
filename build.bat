@@ -1,6 +1,9 @@
 @echo off
 setlocal
 
+:: --- Activate virtual environment ---
+call venv\Scripts\activate.bat
+
 :: --- FullScreenCover Project Settings ---
 set PROJECT_NAME=FullScreenCover
 set ENTRY_SCRIPT=main.py
@@ -11,7 +14,6 @@ set OPTIONS=--name %PROJECT_NAME% ^
  --windowed ^
  --add-data "assets;assets" ^
  --add-data "modules;modules" ^
- --add-data "config.json;." ^
  --icon "assets\icon.ico" ^
  --hidden-import "asyncio" ^
  --hidden-import "tkinter" ^
@@ -46,9 +48,23 @@ echo =====================================
 echo Build complete! Check /dist folder.
 echo =====================================
 echo.
+
+:: --- Copy config.json to dist folder ---
+echo Copying config.json to dist folder...
+if exist config.json (
+    copy config.json dist\
+    echo config.json copied successfully.
+) else (
+    echo Warning: config.json not found!
+)
+echo.
+
 echo Built files:
 if exist dist\%PROJECT_NAME%.exe (
     dir dist\%PROJECT_NAME%.exe
+    if exist dist\config.json (
+        dir dist\config.json
+    )
 ) else (
     echo Build failed!
 )

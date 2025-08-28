@@ -4,37 +4,36 @@
 	"mute_on_screensaver": true,
 	"suppress_during_video": true,
 	"enable_presentation_mode": true,
-	"presentation_mode_silent": false,
 	"presentation_features": {
 		"disable_screensaver": true,
 		"prevent_sleep": true,
+		"silent_notifications": false,
 		"block_notifications": false,
-		"replace_wallpaper": false,
 		"_comment": "高度な制御設定 - UIでは'通知やスリープ'として一括制御されますが、ここで個別機能を細かく設定できます",
 		"_feature_descriptions": {
 			"disable_screensaver": "スクリーンセーバーを無効化（画面オフを防止）",
 			"prevent_sleep": "システムスリープを防止（CPU・ディスクの動作継続）",
-			"block_notifications": "通知をブロック（将来実装予定）",
-			"replace_wallpaper": "デスクトップ壁紙を一時置換（将来実装予定）"
+			"silent_notifications": "通知音をミュート（音声通知を無効化）",
+			"block_notifications": "通知をブロック（将来実装予定）"
 		},
 		"_usage_examples": {
 			"プレゼンテーション用": {
 				"disable_screensaver": true,
 				"prevent_sleep": true,
-				"block_notifications": true,
-				"replace_wallpaper": false
+				"silent_notifications": true,
+				"block_notifications": true
 			},
 			"動画視聴用": {
 				"disable_screensaver": true,
 				"prevent_sleep": false,
-				"block_notifications": false,
-				"replace_wallpaper": false
+				"silent_notifications": false,
+				"block_notifications": false
 			},
 			"録画・配信用": {
 				"disable_screensaver": true,
 				"prevent_sleep": true,
-				"block_notifications": true,
-				"replace_wallpaper": true
+				"silent_notifications": true,
+				"block_notifications": true
 			}
 		}
 	}
