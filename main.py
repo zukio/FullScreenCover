@@ -31,10 +31,22 @@ class ScreensaverController:
         print("VolumeController初期化開始")
         self.volume_controller = VolumeController()
         print("PresentationModeController初期化開始")
-        # サイレントモード設定を取得
-        silent_mode = self.config.get('presentation_mode_silent', False)
-        # 高度な機能設定を取得
-        features_config = self.config.get('presentation_features', {})
+        # プレゼンテーションモードの制御
+        presentation_enabled = self.config.get(
+            'enable_presentation_mode', False)
+        if presentation_enabled:
+            # プレゼンテーションモードが有効な場合のみ、個別設定を適用
+            features_config = self.config.get('presentation_features', {})
+            silent_mode = features_config.get('silent_notifications', False)
+        else:
+            # プレゼンテーションモードが無効な場合、すべての機能を無効化
+            features_config = {
+                'disable_screensaver': False,
+                'prevent_sleep': False,
+                'block_notifications': False
+            }
+            silent_mode = False
+
         self.presentation_controller = get_presentation_controller(
             silent_mode=silent_mode, features_config=features_config)
         print("TrayMenu初期化開始")
@@ -58,13 +70,13 @@ class ScreensaverController:
                 'media_file': get_resource_path('assets/image.png'),
                 'mute_on_screensaver': True,
                 'suppress_during_video': True,
+                'suppress_large_window': False,  # 大きなウィンドウでの抑制（デフォルトOFF）
                 'enable_presentation_mode': False,
-                'presentation_mode_silent': True,
                 'presentation_features': {
                     'disable_screensaver': True,
                     'prevent_sleep': True,
-                    'block_notifications': True,
-                    'replace_wallpaper': False
+                    'silent_notifications': True,
+                    'block_notifications': True
                 }
             }
             self.save_config()
@@ -78,20 +90,29 @@ class ScreensaverController:
             self.config['suppress_during_video'] = True
             self.save_config()
 
+        if 'suppress_large_window' not in self.config:
+            self.config['suppress_large_window'] = False
+            self.save_config()
+
         if 'enable_presentation_mode' not in self.config:
             self.config['enable_presentation_mode'] = False
             self.save_config()
 
-        if 'presentation_mode_silent' not in self.config:
-            self.config['presentation_mode_silent'] = True
+        # 古い設定項目からのマイグレーション
+        if 'presentation_mode_noticesilent' in self.config:
+            # 古い設定を新しい構造に移行
+            old_value = self.config.pop('presentation_mode_noticesilent')
+            if 'presentation_features' not in self.config:
+                self.config['presentation_features'] = {}
+            self.config['presentation_features']['silent_notifications'] = old_value
             self.save_config()
 
         if 'presentation_features' not in self.config:
             self.config['presentation_features'] = {
                 'disable_screensaver': True,
                 'prevent_sleep': True,
-                'block_notifications': True,
-                'replace_wallpaper': False
+                'silent_notifications': True,
+                'block_notifications': True
             }
             self.save_config()
 
@@ -99,20 +120,43 @@ class ScreensaverController:
         try:
             with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=2, ensure_ascii=False)
+            # 設定保存後、プレゼンテーションコントローラーを再初期化
+            self.reinitialize_presentation_controller()
         except Exception as e:
             print(f"設定保存エラー: {e}")
+
+    def reinitialize_presentation_controller(self):
+        """プレゼンテーションコントローラーの再初期化"""
+        try:
+            # プレゼンテーションモードの制御
+            presentation_enabled = self.config.get(
+                'enable_presentation_mode', False)
+            if presentation_enabled:
+                # プレゼンテーションモードが有効な場合のみ、個別設定を適用
+                features_config = self.config.get('presentation_features', {})
+                silent_mode = features_config.get(
+                    'silent_notifications', False)
+            else:
+                # プレゼンテーションモードが無効な場合、すべての機能を無効化
+                features_config = {
+                    'disable_screensaver': False,
+                    'prevent_sleep': False,
+                    'block_notifications': False,
+                }
+                silent_mode = False
+
+            # 新しい設定でコントローラーを再作成
+            self.presentation_controller = get_presentation_controller(
+                silent_mode=silent_mode, features_config=features_config)
+            print(
+                f"プレゼンテーションコントローラーを再初期化しました (enabled: {presentation_enabled}, silent: {silent_mode})")
+        except Exception as e:
+            print(f"プレゼンテーションコントローラー再初期化エラー: {e}")
 
     def show_screensaver_with_mute(self, media_file):
         """ミュート機能付きスクリーンセーバー表示"""
         muted = False
-        presentation_enabled = False
         try:
-            # プレゼンテーションモード設定が有効な場合、プレゼンテーションモードを有効にする
-            if self.config.get('enable_presentation_mode', False):
-                presentation_enabled = self.presentation_controller.enable_presentation_mode()
-                if presentation_enabled:
-                    print("プレゼンテーションモードを有効にしました")
-
             # ミュート設定が有効な場合、音声をミュート
             if self.config.get('mute_on_screensaver', False):
                 muted = self.volume_controller.mute_for_screensaver()
@@ -135,11 +179,6 @@ class ScreensaverController:
             if muted and self.config.get('mute_on_screensaver', False):
                 self.volume_controller.unmute_after_screensaver()
 
-            # プレゼンテーションモードを無効にする
-            if presentation_enabled and self.config.get('enable_presentation_mode', False):
-                self.presentation_controller.disable_presentation_mode()
-                print("プレゼンテーションモードを無効にしました")
-
     def monitor(self):
         print("モニタリング開始")
         while self.running:
@@ -149,7 +188,10 @@ class ScreensaverController:
                 # 動画抑制設定が有効な場合のみチェック
                 suppress = False
                 if self.config.get('suppress_during_video', True):
-                    suppress = should_suppress_screensaver()
+                    suppress_large_window = self.config.get(
+                        'suppress_large_window', False)
+                    suppress = should_suppress_screensaver(
+                        suppress_large_window)
 
                 mute_setting = self.config.get('mute_on_screensaver', False)
                 video_suppress_setting = self.config.get(

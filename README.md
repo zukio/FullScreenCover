@@ -16,13 +16,16 @@ Pythonで作成されたカスタムスクリーンセーバー。Windows環境�
 
 ### 動画プレイヤー検出
 
-- **対応プレイヤー**: VLC, MPC-HC, MPC-BE, KMPlayer, PotPlayer, Windows Media Player, Movies & TV
-- **条件**: フルスクリーン表示時のみ抑制
+- **対応プレイヤー**: VLC, MPC-HC, MPC-BE, KMPlayer, PotPlayer, mpv, Windows Media Player, Windows 11 メディア プレーヤー等
+- **条件**:
+  - フルスクリーン表示時は必ず抑制
+  - 大きなウィンドウ（1200x800以上）でも抑制
 
 ### ブラウザ動画再生
 
 - **対応ブラウザ**: Chrome, Firefox, Edge, その他
-- **条件**: YouTubeなどの動画サイトでフルスクリーン再生時
+- **対応サイト**: YouTube, Netflix, Amazon Prime, Twitch, Vimeo等
+- **条件**: 動画サイトでフルスクリーン再生時
 
 ### プレゼンテーション
 

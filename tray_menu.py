@@ -94,22 +94,11 @@ class TrayMenu:
                 enabled_features.append("スリープ防止")
             if features.get('block_notifications', False):
                 enabled_features.append("通知ブロック")
-            if features.get('replace_wallpaper', False):
-                enabled_features.append("壁紙置換")
 
             if enabled_features:
                 debug_print(f"  有効な機能: {', '.join(enabled_features)}")
             debug_print(
                 "  ※ 高度な機能設定はconfig.jsonの'presentation_features'で個別制御可能")
-
-    def toggle_presentation_mode_silent_setting(self, icon=None, item=None):
-        """通知設定の切り替え"""
-        current = self.controller.config.get('presentation_mode_silent', True)
-        self.controller.config['presentation_mode_silent'] = not current
-        self.controller.save_config()
-        self.regenerate_menu()
-        status = "通知ブロック" if not current else "通知あり"
-        debug_print(f"通知設定: {status}")
 
     def toggle_pause(self, icon, item):
         """一時停止/再開の切り替え"""
@@ -158,7 +147,7 @@ class TrayMenu:
             MenuItem(video_suppress_text, self.toggle_video_suppress_setting),
             MenuItem(presentation_enabled_text,
                      self.toggle_presentation_mode_setting),
-            MenuItem(pause_text, self.toggle_pause),
+            # MenuItem(pause_text, self.toggle_pause),
             MenuItem('終了', self.on_quit)
         )
 

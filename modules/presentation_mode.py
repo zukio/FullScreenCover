@@ -4,7 +4,6 @@ UIでは一括設定として「通知やスリープ」だが、内部的には
 - disable_screensaver: スクリーンセーバーを無効化
 - prevent_sleep: システムスリープを防止  
 - block_notifications: 通知をブロック
-- replace_wallpaper: デスクトップ壁紙を一時置換
 """
 import ctypes
 from ctypes import wintypes
@@ -35,7 +34,6 @@ class PresentationModeController:
             'disable_screensaver': True,     # スクリーンセーバーを無効化
             'prevent_sleep': True,           # システムスリープを防止
             'block_notifications': False,    # 通知をブロック（現在未実装）
-            'replace_wallpaper': False       # デスクトップ壁紙を一時置換（現在未実装）
         }
 
         # 設定をマージ（設定ファイルからの高度な制御も可能）
@@ -98,6 +96,28 @@ class PresentationModeController:
         """エラーログは常に出力"""
         logging.error(message)
 
+    def update_settings(self, silent_mode=None, config=None):
+        """設定を更新する（既存インスタンスの設定変更用）"""
+        settings_changed = False
+
+        # サイレントモードの更新
+        if silent_mode is not None and self.silent_mode != silent_mode:
+            self.silent_mode = silent_mode
+            settings_changed = True
+
+        # 機能設定の更新
+        if config is not None:
+            new_features = self.features.copy()
+            if isinstance(config, dict):
+                new_features.update(config)
+                if new_features != self.features:
+                    self.features = new_features
+                    settings_changed = True
+
+        if settings_changed:
+            self._log_info(
+                f"プレゼンテーションモード設定を更新しました (silent: {self.silent_mode}, features: {self.features})")
+
     def enable_presentation_mode(self):
         """プレゼンテーションモードを有効にする（設定に基づいて各機能を個別制御）"""
         try:
@@ -123,15 +143,6 @@ class PresentationModeController:
                 else:
                     self._log_warning("通知ブロックは現在未実装です")
 
-            # 3. デスクトップ壁紙置換（将来実装予定）
-            if self.features.get('replace_wallpaper'):
-                total_features += 1
-                if self._enable_wallpaper_replacement():
-                    success_count += 1
-                    self._log_info("デスクトップ壁紙置換を有効にしました")
-                else:
-                    self._log_warning("デスクトップ壁紙置換は現在未実装です")
-
             # 成功判定（有効な機能の半分以上が成功すれば成功とみなす）
             success = success_count > 0 and (
                 total_features == 0 or success_count >= total_features * 0.5)
@@ -145,8 +156,6 @@ class PresentationModeController:
                     active_features.append("スリープ防止")
                 if self.features.get('block_notifications'):
                     active_features.append("通知ブロック")
-                if self.features.get('replace_wallpaper'):
-                    active_features.append("壁紙置換")
 
                 self._log_info(
                     f"プレゼンテーションモードを有効にしました（機能: {', '.join(active_features)}）")
@@ -340,13 +349,6 @@ class PresentationModeController:
                     success_count += 1
                     self._log_info("通知ブロックを無効にしました")
 
-            # 3. デスクトップ壁紙復元（将来実装予定）
-            if self.features.get('replace_wallpaper'):
-                total_features += 1
-                if self._disable_wallpaper_replacement():
-                    success_count += 1
-                    self._log_info("デスクトップ壁紙を復元しました")
-
             # 成功判定
             success = success_count > 0 and (
                 total_features == 0 or success_count >= total_features * 0.5)
@@ -490,9 +492,16 @@ _presentation_controller = None
 def get_presentation_controller(silent_mode=False, features_config=None):
     """プレゼンテーションモードコントローラーのシングルトンインスタンスを取得"""
     global _presentation_controller
+
     if _presentation_controller is None:
+        # 初回作成
         _presentation_controller = PresentationModeController(
             silent_mode=silent_mode, config=features_config)
+    else:
+        # 既存インスタンスの設定を更新
+        _presentation_controller.update_settings(
+            silent_mode=silent_mode, config=features_config)
+
     return _presentation_controller
 
 
@@ -522,7 +531,6 @@ def set_presentation_features(features_config):
             - disable_screensaver (bool): スクリーンセーバーを無効化
             - prevent_sleep (bool): システムスリープを防止
             - block_notifications (bool): 通知をブロック
-            - replace_wallpaper (bool): デスクトップ壁紙を一時置換
     """
     global _presentation_controller
     if _presentation_controller is not None:
@@ -576,7 +584,6 @@ if __name__ == "__main__":
         'disable_screensaver': True,
         'prevent_sleep': False,  # スリープ防止は無効
         'block_notifications': True,  # 通知ブロック有効（未実装だがテスト）
-        'replace_wallpaper': False
     }
 
     set_presentation_features(custom_features)
