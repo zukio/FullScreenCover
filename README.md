@@ -60,6 +60,7 @@ Release版のバイナリは [Releases](https://github.com/zukio/FullScreenCover
 
 - PNG, JPG, JPEG, BMP
 - フルスクリーン表示
+- ドットバイドットで表示されます
 
 #### 動画
 
