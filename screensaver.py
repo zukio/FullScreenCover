@@ -7,6 +7,7 @@ import threading
 from threading import Thread
 from PIL import Image, ImageTk
 from modules.utils.display_utils import get_display_by_index, get_primary_display, DisplayInfo
+from modules.utils.cursor_control import hide_system_cursor, show_system_cursor
 from typing import Optional, List
 try:
     from pynput import mouse, keyboard
@@ -69,6 +70,10 @@ def show_image(image_path, display_info: DisplayInfo):
     # 毎回新しいtkinterインスタンスを作成
     root = tk.Tk()
 
+    # システムレベルでマウスカーソーを非表示（tkinterのcursor='none'に加えて）
+    cursor_hidden = hide_system_cursor()
+    print(f"画像表示開始: マウスカーソー非表示 = {cursor_hidden}")
+
     # 基本設定
     root.config(cursor='none')
     root.configure(bg='black')
@@ -122,6 +127,11 @@ def show_image(image_path, display_info: DisplayInfo):
         if not closed['flag']:
             closed['flag'] = True
             try:
+                # マウスカーソーを復元
+                if cursor_hidden:
+                    show_system_cursor()
+                    print("画像表示終了: マウスカーソー復元")
+
                 # グローバルフックリスナーを停止
                 if hasattr(close, 'mouse_listener'):
                     try:
@@ -184,6 +194,11 @@ def show_image(image_path, display_info: DisplayInfo):
     except Exception as e:
         print(f"mainloop error: {e}")
     finally:
+        # マウスカーソーを復元
+        if cursor_hidden:
+            show_system_cursor()
+            print("画像表示終了: マウスカーソー復元 (finally)")
+
         # 確実にクリーンアップ
         try:
             if root.winfo_exists():
@@ -205,6 +220,10 @@ def show_video(video_path, display_info: DisplayInfo):
         print(f"Video file could not be opened: {video_path}")
         return
 
+    # システムレベルでマウスカーソーを非表示
+    cursor_hidden = hide_system_cursor()
+    print(f"動画表示開始: マウスカーソー非表示 = {cursor_hidden}")
+
     # ウィンドウ名にディスプレイ情報を含める
     window_name = f'screensaver_display_{display_info.index}'
     cv2.namedWindow(window_name, cv2.WND_PROP_FULLSCREEN)
@@ -224,6 +243,10 @@ def show_video(video_path, display_info: DisplayInfo):
         if not closed['flag']:
             closed['flag'] = True
             print("グローバルフック発火: ビデオ再生中断 detected")
+            # マウスカーソーを復元
+            if cursor_hidden:
+                show_system_cursor()
+                print("動画表示終了: マウスカーソー復元")
             cap.release()
             cv2.destroyWindow(window_name)
 
@@ -263,6 +286,10 @@ def show_video(video_path, display_info: DisplayInfo):
     except Exception as e:
         print(f"Video playback error: {e}")
     finally:
+        # マウスカーソーを復元
+        if cursor_hidden:
+            show_system_cursor()
+            print("動画表示終了: マウスカーソー復元 (finally)")
         cap.release()
         cv2.destroyWindow(window_name)
 

@@ -168,7 +168,6 @@ class TrayMenu:
         # 各ディスプレイ
         displays = self.display_manager.get_displays()
         if len(displays) > 0:
-            items.append(MenuItem('-', None))  # セパレータ
             for i, display in enumerate(displays):
                 # プライマリディスプレイが選択されている場合の判定を調整
                 is_selected = (current_mode == 'specific' and current_index == i) or \
