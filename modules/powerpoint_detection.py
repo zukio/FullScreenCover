@@ -111,7 +111,7 @@ class PowerPointDetector:
             return False
 
     def _check_media_in_current_slide(self):
-        """現在のスライドに動画があるかどうかを確認"""
+        """現在のスライドに動画があるかどうかを確認（改良版：サイズに関係なく検出）"""
         try:
             if not self.app:
                 return False
@@ -134,8 +134,26 @@ class PowerPointDetector:
                 try:
                     # Type 16 はメディア（動画/音声）オブジェクト
                     if shape.Type == 16:  # msoMedia
-                        media_shapes.append(shape)
-                        self._log_debug(f"メディアオブジェクト発見: {shape.Name}")
+                        # サイズ情報も取得して記録
+                        try:
+                            width = shape.Width
+                            height = shape.Height
+                            area = width * height
+                            self._log_debug(
+                                f"メディアオブジェクト発見: {shape.Name} (サイズ: {width:.1f}x{height:.1f}, 面積: {area:.0f})")
+
+                            # サイズに関係なくメディアオブジェクトとして追加
+                            media_shapes.append(shape)
+
+                            # 小さな動画の場合は特別にログ出力
+                            if area < 10000:  # 面積が10000平方ポイント未満を小さな動画とする
+                                self._log_debug(
+                                    f"小さな動画検出: {shape.Name} (面積: {area:.0f})")
+                        except:
+                            # サイズ取得に失敗してもメディアオブジェクトとして処理
+                            media_shapes.append(shape)
+                            self._log_debug(
+                                f"メディアオブジェクト発見: {shape.Name} (サイズ情報取得不可)")
 
                 except Exception as shape_error:
                     # 一部のシェイプでエラーが発生してもスキップ
@@ -343,7 +361,7 @@ class PowerPointDetector:
         return animation_info
 
     def _infer_state_from_properties(self, properties, shape_name):
-        """収集したプロパティから再生状態を推測（改良版）"""
+        """収集したプロパティから再生状態を推測（改良版：小さな動画対応）"""
 
         # 音量が0でミュートされていない場合、再生中の可能性が高い
         volume = properties.get('Volume', 0)
@@ -358,92 +376,175 @@ class PowerPointDetector:
         start_point = properties.get('StartPoint', 0)
         end_point = properties.get('EndPoint', 0)
 
+        # 小さな動画用の追加判定要素
+        click_action = properties.get('click_action', 0)
+        trigger_type = properties.get('trigger_type', 0)
+        effect_type = properties.get('effect_type', 0)
+
         self._log_debug(
-            f"推測材料 ({shape_name}): Volume={volume}, Muted={muted}, PlayAction={has_play_action}, MediaEffect={has_media_effect}, Length={length}")
+            f"推測材料 ({shape_name}): Volume={volume}, Muted={muted}, PlayAction={has_play_action}, MediaEffect={has_media_effect}, Length={length}, ClickAction={click_action}")
 
-        # より保守的な推測ロジック（停止中の判定を改善）
+        # 小さな動画の場合、より積極的な判定を行う
+        # 小さな動画では一部のプロパティが正しく取得できない場合がある
+
+        # 1. 確実に再生中と判定できる条件
         if has_play_action and has_media_effect and length > 0:
-            # メディアファイルが実際に存在し、アクションとエフェクトが設定されている場合
             if volume > 0 and not muted:
-                # 音量があり、ミュートされていない場合
-                # ただし、これだけでは再生中と断定できないため、状態を不明とする
-                self._log_debug(f"推測結果: 状態不明（条件は満たすが確実性なし）")
-                return None  # 確実性がないため不明とする
+                # 通常サイズと同じ条件だが、小さな動画でも適用
+                self._log_debug(f"推測結果: 再生中の可能性高（音量・アクション条件満たす）")
+                return 1  # 再生中
+            elif volume > 0 or not muted:
+                # 片方の条件のみ満たす場合でも再生中の可能性
+                self._log_debug(f"推測結果: 再生中の可能性（部分的音量条件）")
+                return 1  # 再生中
+
+        # 2. アクション設定のみでも判定（小さな動画対応）
+        if has_play_action or (click_action == 12):  # アクション12は再生関連
+            if length > 0:
+                self._log_debug(f"推測結果: 状態不明（アクション設定あり、確実性なし）")
+                return None  # 不明（保守的判定）
+
+        # 3. アニメーション効果からの判定（小さな動画でも有効）
+        if has_media_effect or (effect_type == 83):  # 効果タイプ83はメディア関連
+            if length > 0:
+                self._log_debug(f"推測結果: 状態不明（アニメーション効果あり、確実性なし）")
+                return None  # 不明（保守的判定）
+
+        # 4. 基本的な停止判定
+        if length > 0:
+            if muted and volume == 0:
+                self._log_debug(f"推測結果: 停止中（ミュート・音量0）")
+                return 2  # 停止
             else:
-                # ミュートまたは音量0 → より確実に一時停止/停止
-                self._log_debug(f"推測結果: 一時停止/停止中（音量条件）")
-                return 0  # 一時停止
+                # メディアファイルは存在するが状態が不明
+                self._log_debug(f"推測結果: 状態不明（メディア存在、条件不明）")
+                return None
 
-        elif has_play_action or has_media_effect:
-            # どちらか一方が設定されている場合は不明
-            self._log_debug(f"推測結果: 不明（部分的な設定）")
-            return None
-
-        elif length > 0:
-            # メディアファイルは存在するがアクション/エフェクトが設定されていない → 停止中
-            self._log_debug(f"推測結果: 停止中（メディア存在、設定なし）")
-            return 2  # 停止
-
-        else:
-            # 何も設定されていない場合は停止中
-            self._log_debug(f"推測結果: 停止中（設定なし）")
-            return 2  # 停止
-
-        return None
+        # 5. デフォルト：停止中
+        self._log_debug(f"推測結果: 停止中（デフォルト）")
+        return 2  # 停止
 
     def _try_alternative_playstate(self, shape, media_info):
-        """代替的なアクセス方法を試行"""
+        """代替的なアクセス方法を試行（小さな動画対応強化）"""
         try:
-            # 方法2-1: ActionSettingsからの推測
+            # 方法2-1: ActionSettingsからの推測（詳細化）
             if hasattr(shape, 'ActionSettings'):
                 try:
                     action_settings = shape.ActionSettings(1)  # ppMouseClick
                     if hasattr(action_settings, 'Action'):
                         action = action_settings.Action
-                        if action == 32:  # ppActionPlay
-                            media_info['access_method'] = 'ActionSettings推測'
-                            # アクションが設定されているが、実際の再生状態は不明
-                            self._log_debug(f"アクション設定でPlayが検出: {shape.Name}")
-                except:
-                    pass
+                        media_info['additional_info']['click_action'] = action
 
-            # 方法2-2: OLEObjectからの情報取得
+                        if action == 32:  # ppActionPlay
+                            media_info['access_method'] = 'ActionSettings推測(Play)'
+                            self._log_debug(f"アクション設定でPlayが検出: {shape.Name}")
+                        elif action == 12:  # 特定のアクション（再生関連の可能性）
+                            media_info['access_method'] = 'ActionSettings推測(Action12)'
+                            self._log_debug(f"アクション12が検出: {shape.Name}")
+
+                        # 他のActionSettings項目も確認
+                        if hasattr(action_settings, 'AnimateAction'):
+                            animate_action = action_settings.AnimateAction
+                            media_info['additional_info']['animate_action'] = animate_action
+
+                except Exception as e:
+                    self._log_debug(f"ActionSettings取得エラー ({shape.Name}): {e}")
+
+            # 方法2-2: OLEObjectからの情報取得（拡張）
             if hasattr(shape, 'OLEFormat'):
                 try:
                     ole_format = shape.OLEFormat
                     if hasattr(ole_format, 'Object'):
                         ole_object = ole_format.Object
-                        # Windows Media Playerなどの場合、PlayStateが取得できる可能性
-                        if hasattr(ole_object, 'PlayState'):
-                            play_state = ole_object.PlayState
-                            media_info['play_state'] = play_state
-                            media_info['access_method'] = 'OLEFormat.Object.PlayState'
-                            return True
-                        elif hasattr(ole_object, 'CurrentState'):
-                            current_state = ole_object.CurrentState
-                            media_info['play_state'] = current_state
-                            media_info['access_method'] = 'OLEFormat.Object.CurrentState'
-                            return True
-                except:
-                    pass
 
-            # 方法2-3: AnimationEffectsからの推測
+                        # より多くのプロパティをチェック
+                        ole_properties = ['PlayState',
+                                          'CurrentState', 'State', 'Status']
+                        for prop_name in ole_properties:
+                            try:
+                                if hasattr(ole_object, prop_name):
+                                    prop_value = getattr(ole_object, prop_name)
+                                    media_info['play_state'] = prop_value
+                                    media_info['access_method'] = f'OLEFormat.Object.{prop_name}'
+                                    self._log_debug(
+                                        f"OLE {prop_name}から状態取得: {shape.Name} = {prop_value}")
+                                    return True
+                            except:
+                                continue
+
+                        # ProgIDの確認（小さな動画の種類判定）
+                        try:
+                            if hasattr(ole_format, 'ProgID'):
+                                prog_id = ole_format.ProgID
+                                media_info['additional_info']['prog_id'] = prog_id
+                                self._log_debug(
+                                    f"ProgID: {shape.Name} = {prog_id}")
+                        except:
+                            pass
+
+                except Exception as e:
+                    self._log_debug(f"OLEFormat取得エラー ({shape.Name}): {e}")
+
+            # 方法2-3: AnimationEffectsからの推測（詳細化）
             try:
-                # スライドのアニメーション効果を確認
                 slide = shape.Parent
                 if hasattr(slide, 'TimeLine') and hasattr(slide.TimeLine, 'MainSequence'):
                     main_sequence = slide.TimeLine.MainSequence
-                    for effect in main_sequence:
-                        if hasattr(effect, 'Shape') and effect.Shape.Name == shape.Name:
-                            # msoAnimEffectMediaPlay
-                            if hasattr(effect, 'EffectType') and effect.EffectType == 30:
-                                media_info['access_method'] = 'Animation効果推測'
-                                self._log_debug(
-                                    f"アニメーション効果でメディア再生が検出: {shape.Name}")
-                                # アニメーションが設定されているが実際の状態は不明
+
+                    # すべてのエフェクトをチェック
+                    for i in range(1, main_sequence.Count + 1):
+                        try:
+                            effect = main_sequence.Item(i)
+                            if hasattr(effect, 'Shape') and effect.Shape.Name == shape.Name:
+
+                                # エフェクトタイプの詳細チェック
+                                if hasattr(effect, 'EffectType'):
+                                    effect_type = effect.EffectType
+                                    media_info['additional_info']['effect_type'] = effect_type
+
+                                    # 既知のメディア関連エフェクト
+                                    # 各種メディア再生エフェクト
+                                    media_effects = [30, 83, 84, 85]
+                                    if effect_type in media_effects:
+                                        media_info['access_method'] = f'Animation効果推測(Type{effect_type})'
+                                        self._log_debug(
+                                            f"メディア関連アニメーション効果検出: {shape.Name} (Type: {effect_type})")
+
+                                # タイミング情報の取得
+                                if hasattr(effect, 'Timing'):
+                                    timing = effect.Timing
+                                    if hasattr(timing, 'TriggerType'):
+                                        trigger_type = timing.TriggerType
+                                        media_info['additional_info']['trigger_type'] = trigger_type
+
+                                    # 再生時間の情報
+                                    if hasattr(timing, 'Duration'):
+                                        duration = timing.Duration
+                                        media_info['additional_info']['effect_duration'] = duration
+
                                 break
-            except:
-                pass
+                        except:
+                            continue
+
+            except Exception as e:
+                self._log_debug(f"アニメーション効果取得エラー ({shape.Name}): {e}")
+
+            # 方法2-4: 小さな動画特有の検出（新規追加）
+            try:
+                # 動画のファイル拡張子から種類を判定
+                if hasattr(shape, 'MediaFormat') and hasattr(shape.MediaFormat, 'FileName'):
+                    filename = shape.MediaFormat.FileName
+                    media_info['additional_info']['filename'] = filename
+
+                    # 小さな動画でよく使われる形式
+                    small_video_formats = ['.gif', '.webm', '.mp4']
+                    if any(filename.lower().endswith(fmt) for fmt in small_video_formats):
+                        self._log_debug(
+                            f"小さな動画形式検出: {shape.Name} ({filename})")
+                        media_info['additional_info']['small_video_format'] = True
+
+            except Exception as e:
+                self._log_debug(f"ファイル名取得エラー ({shape.Name}): {e}")
 
         except Exception as e:
             self._log_debug(f"代替PlayState取得エラー ({shape.Name}): {e}")
