@@ -6,6 +6,7 @@ from tkinter import filedialog, simpledialog
 import threading
 import os
 import sys
+from modules.utils.display_utils import get_display_manager
 
 
 def get_resource_path(relative_path):
@@ -37,6 +38,7 @@ class TrayMenu:
             self.controller = controller
             self.icon = Icon('screensaver')
             self.is_paused = False  # 一時停止状態を管理する変数
+            self.display_manager = get_display_manager()  # ディスプレイマネージャーを取得
             debug_print("アイコンファイル読み込み中...")
             self.icon.icon = Image.open(get_resource_path('assets/icon.ico'))
             debug_print("メニュー作成中...")
@@ -49,13 +51,28 @@ class TrayMenu:
             traceback.print_exc()
 
     def increment_interval(self, value):
-        current = self.controller.config.get('interval', 300)
-        self.set_interval(current + value)
+        def _increment(icon, item):
+            current = self.controller.config.get('interval', 300)
+            self.set_interval_value(current + value)
+        return _increment
 
     def decrement_interval(self, value):
-        current = self.controller.config.get('interval', 300)
-        new_value = max(1, current - value)
-        self.set_interval(new_value)
+        def _decrement(icon, item):
+            current = self.controller.config.get('interval', 300)
+            new_value = max(1, current - value)
+            self.set_interval_value(new_value)
+        return _decrement
+
+    def set_interval(self, sec):
+        def _set_interval(icon, item):
+            self.set_interval_value(sec)
+        return _set_interval
+
+    def set_interval_value(self, sec):
+        """実際にインターバル値を設定するメソッド"""
+        self.controller.config['interval'] = sec
+        self.controller.save_config()
+        self.regenerate_menu()
 
     def toggle_mute_setting(self, icon, item):
         """ミュート設定の切り替え"""
@@ -114,6 +131,59 @@ class TrayMenu:
 
         self.regenerate_menu()
 
+    def set_display_mode(self, mode):
+        """ディスプレイ表示モードを設定"""
+        def _set_mode(icon, item):
+            self.controller.config['display_mode'] = mode
+            if mode != 'specific':
+                # 特定ディスプレイ以外の場合はdisplay_indexをクリア
+                self.controller.config['display_index'] = None
+            self.controller.save_config()
+            self.regenerate_menu()
+            debug_print(f"ディスプレイ表示モード: {mode}")
+        return _set_mode
+
+    def set_specific_display(self, display_index):
+        """特定のディスプレイを選択"""
+        def _set_display(icon, item):
+            self.controller.config['display_mode'] = 'specific'
+            self.controller.config['display_index'] = display_index
+            self.controller.save_config()
+            self.regenerate_menu()
+            debug_print(f"表示ディスプレイ: {display_index + 1}")
+        return _set_display
+
+    def get_display_menu_items(self):
+        """ディスプレイ選択メニュー項目を生成"""
+        current_mode = self.controller.config.get('display_mode', 'primary')
+        current_index = self.controller.config.get('display_index', None)
+
+        items = []
+
+        # 全ディスプレイ
+        check_all = "☑" if current_mode == 'all' else "☐"
+        items.append(MenuItem(f'{check_all} 全ディスプレイ',
+                     self.set_display_mode('all')))
+
+        # 各ディスプレイ
+        displays = self.display_manager.get_displays()
+        if len(displays) > 0:
+            items.append(MenuItem('-', None))  # セパレータ
+            for i, display in enumerate(displays):
+                # プライマリディスプレイが選択されている場合の判定を調整
+                is_selected = (current_mode == 'specific' and current_index == i) or \
+                              (current_mode == 'primary' and display.is_primary)
+                check_specific = "☑" if is_selected else "☐"
+                display_name = f"ディスプレイ {i + 1}"
+                if display.is_primary:
+                    display_name += " (プライマリ)"
+                display_name += f" - {display.width}x{display.height}"
+                items.append(MenuItem(
+                    f'{check_specific} {display_name}',
+                    self.set_specific_display(i)))
+
+        return items
+
     def regenerate_menu(self):
         """メニューを再生成して現在の設定を反映"""
         mute_enabled = self.controller.config.get('mute_on_screensaver', True)
@@ -129,20 +199,48 @@ class TrayMenu:
 
         pause_text = "⏸ 一時停止" if not self.is_paused else "▶ 再開（停止中）"
 
+        # ディスプレイ設定の表示テキスト
+        display_mode = self.controller.config.get('display_mode', 'primary')
+        display_index = self.controller.config.get('display_index', None)
+
+        if display_mode == 'primary':
+            # プライマリディスプレイの場合、プライマリディスプレイの番号を表示
+            primary_display = self.display_manager.get_primary_display()
+            if primary_display:
+                display_text = f"ディスプレイ {primary_display.index + 1} (プライマリ)"
+            else:
+                display_text = "プライマリディスプレイ"
+        elif display_mode == 'all':
+            display_text = "全ディスプレイ"
+        elif display_mode == 'specific' and display_index is not None:
+            target_display = self.display_manager.get_display_by_index(
+                display_index)
+            if target_display:
+                primary_text = " (プライマリ)" if target_display.is_primary else ""
+                display_text = f"ディスプレイ {display_index + 1}{primary_text}"
+            else:
+                display_text = f"ディスプレイ {display_index + 1}"
+        else:
+            display_text = "プライマリディスプレイ"
+
         self.icon.menu = Menu(
             MenuItem(
                 f'インターバル（秒）: {self.controller.config.get("interval", 300)}',
                 Menu(
-                    MenuItem('+10秒', lambda: self.increment_interval(10)),
-                    MenuItem('-10秒', lambda: self.decrement_interval(10)),
-                    MenuItem('30秒', lambda: self.set_interval(30)),
-                    MenuItem('60秒', lambda: self.set_interval(60)),
-                    MenuItem('120秒', lambda: self.set_interval(120)),
-                    MenuItem('300秒', lambda: self.set_interval(300)),
-                    MenuItem('600秒', lambda: self.set_interval(600)),
+                    MenuItem('+10秒', self.increment_interval(10)),
+                    MenuItem('-10秒', self.decrement_interval(10)),
+                    MenuItem('30秒', self.set_interval(30)),
+                    MenuItem('60秒', self.set_interval(60)),
+                    MenuItem('120秒', self.set_interval(120)),
+                    MenuItem('300秒', self.set_interval(300)),
+                    MenuItem('600秒', self.set_interval(600)),
                 )
             ),
             MenuItem('画像/動画を選ぶ', self.choose_file),
+            MenuItem(
+                f'表示ディスプレイ: {display_text}',
+                Menu(*self.get_display_menu_items())
+            ),
             MenuItem(mute_text, self.toggle_mute_setting),
             MenuItem(video_suppress_text, self.toggle_video_suppress_setting),
             MenuItem(presentation_enabled_text,
@@ -150,11 +248,6 @@ class TrayMenu:
             # MenuItem(pause_text, self.toggle_pause),
             MenuItem('終了', self.on_quit)
         )
-
-    def set_interval(self, sec):
-        self.controller.config['interval'] = sec
-        self.controller.save_config()
-        self.regenerate_menu()
 
     def choose_file(self, icon, item):
         try:

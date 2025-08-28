@@ -4,6 +4,7 @@ import threading
 import json
 import time
 from modules.utils.path_utils import get_idle_duration
+from modules.utils.display_utils import get_display_manager, get_display_by_index, get_primary_display
 from modules.lock import should_suppress_screensaver
 from modules.audio_devices import VolumeController
 from modules.presentation_mode import get_presentation_controller
@@ -42,6 +43,13 @@ CONFIG_PATH = get_config_path()
 class ScreensaverController:
     def __init__(self):
         print("ScreensaverController初期化開始")
+
+        # ディスプレイマネージャーを初期化
+        self.display_manager = get_display_manager()
+        print(f"検出されたディスプレイ数: {self.display_manager.get_display_count()}")
+        for display in self.display_manager.get_displays():
+            print(f"  {display}")
+
         self.load_config()
         print("VolumeController初期化開始")
         self.volume_controller = VolumeController()
@@ -92,7 +100,9 @@ class ScreensaverController:
                     'prevent_sleep': True,
                     'silent_notifications': True,
                     'block_notifications': True
-                }
+                },
+                'display_index': None,  # None = プライマリディスプレイ, 0以上 = 指定ディスプレイ
+                'display_mode': 'primary'  # 'primary', 'all', 'specific'
             }
             self.save_config()
 
@@ -131,10 +141,29 @@ class ScreensaverController:
             }
             self.save_config()
 
+        # ディスプレイ設定のデフォルト値
+        if 'display_index' not in self.config:
+            self.config['display_index'] = None
+            self.save_config()
+
+        if 'display_mode' not in self.config:
+            self.config['display_mode'] = 'primary'
+            self.save_config()
+
     def save_config(self):
         try:
+            # JSONシリアライズ可能な設定のみを抽出
+            serializable_config = {}
+            for key, value in self.config.items():
+                try:
+                    # テストシリアライズを行い、成功した場合のみ含める
+                    json.dumps(value)
+                    serializable_config[key] = value
+                except (TypeError, ValueError):
+                    print(f"設定項目 '{key}' はJSONシリアライズできません。スキップします。")
+
             with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-                json.dump(self.config, f, indent=2, ensure_ascii=False)
+                json.dump(serializable_config, f, indent=2, ensure_ascii=False)
             # 設定保存後、プレゼンテーションコントローラーを再初期化
             self.reinitialize_presentation_controller()
         except Exception as e:
@@ -185,14 +214,43 @@ class ScreensaverController:
                 basename = os.path.basename(media_file)
                 resolved_media_file = get_resource_path(f'assets/{basename}')
 
-            print(f"スクリーンセーバー表示: {resolved_media_file}")
-            # スクリーンセーバーを表示
-            show_screensaver(resolved_media_file)
+            # ディスプレイ設定に基づいてスクリーンセーバーを表示
+            display_mode = self.config.get('display_mode', 'primary')
+            display_index = self.config.get('display_index', None)
+
+            if display_mode == 'all':
+                # 全ディスプレイに表示
+                self._show_on_all_displays(resolved_media_file)
+            elif display_mode == 'specific' and display_index is not None:
+                # 指定されたディスプレイに表示
+                print(
+                    f"指定ディスプレイ {display_index + 1} でスクリーンセーバー表示: {resolved_media_file}")
+                show_screensaver(resolved_media_file, display_index)
+            else:
+                # プライマリディスプレイに表示（デフォルト）
+                print(f"プライマリディスプレイでスクリーンセーバー表示: {resolved_media_file}")
+                show_screensaver(resolved_media_file, None)
 
         finally:
             # スクリーンセーバー終了後、音声を復元
             if muted and self.config.get('mute_on_screensaver', False):
                 self.volume_controller.unmute_after_screensaver()
+
+    def _show_on_all_displays(self, media_file):
+        """全ディスプレイでスクリーンセーバーを表示"""
+        from screensaver import show_screensaver_on_all_displays_simultaneously
+
+        displays = self.display_manager.get_displays()
+        print(f"全ディスプレイ（{len(displays)}台）でスクリーンセーバー表示: {media_file}")
+
+        if len(displays) == 1:
+            # ディスプレイが1台の場合は通常表示
+            show_screensaver(media_file, displays[0].index)
+        else:
+            # 複数ディスプレイの場合、同時表示を使用
+            print("複数ディスプレイでの同時表示を開始...")
+            show_screensaver_on_all_displays_simultaneously(
+                media_file, displays)
 
     def monitor(self):
         print("モニタリング開始")
