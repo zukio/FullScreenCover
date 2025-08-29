@@ -1,8 +1,9 @@
 {
 	"interval": 300,
-	"media_file": "assets/image.png",
+	"media_file": "assets/background.png",
 	"mute_on_screensaver": true,
 	"suppress_during_video": true,
+	"suppress_large_window": false,
 	"enable_presentation_mode": true,
 	"presentation_features": {
 		"disable_screensaver": true,
@@ -14,7 +15,7 @@
 			"disable_screensaver": "スクリーンセーバーを無効化（画面オフを防止）",
 			"prevent_sleep": "システムスリープを防止（CPU・ディスクの動作継続）",
 			"silent_notifications": "通知音をミュート（音声通知を無効化）",
-			"block_notifications": "通知をブロック（将来実装予定）"
+			"block_notifications": "通知をブロック（Focus Assist使用）"
 		},
 		"_usage_examples": {
 			"プレゼンテーション用": {
@@ -36,5 +37,7 @@
 				"block_notifications": true
 			}
 		}
-	}
+	},
+	"display_mode": "specific",
+	"display_index": 0
 }
