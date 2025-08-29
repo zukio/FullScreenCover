@@ -11,33 +11,6 @@ Pythonで作成されたカスタムスクリーンセーバー。Windows環境�
 - **動画再生中の抑制機能**: 動画再生中やプレゼン中の自動抑制
 - **複数ディスプレイ対応**: 特定のディスプレイを選択してスクリーンセーバーを表示
 
-## 動画再生中の抑制機能
-
-以下の状況では自動的にスクリーンセーバーを抑制します：
-
-### 動画プレイヤー検出
-
-- **対応プレイヤー**: VLC, MPC-HC, MPC-BE, KMPlayer, PotPlayer, mpv, Windows Media Player, Windows 11 メディア プレーヤー等
-- **条件**:
-  - フルスクリーン表示時は必ず抑制
-  - 大きなウィンドウ（1200x800以上）でも抑制
-
-### ブラウザ動画再生
-
-- **対応ブラウザ**: Chrome, Firefox, Edge, その他
-- **対応サイト**: YouTube, Netflix, Amazon Prime, Twitch, Vimeo等
-- **条件**: 動画サイトでフルスクリーン再生時
-
-### プレゼンテーション
-
-- **対応アプリ**: Microsoft PowerPoint
-- **条件**:
-  - **第1優先**: PowerPoint COM APIによる動画オブジェクト検出（推奨）
-    - スライドショーモードでメディアオブジェクトが**再生中**の場合に抑制
-    - 動画の再生状態を直接確認、環境依存性なし
-  - **フォールバック**: スライドショーモード + CPU使用率10%以上（従来方式）
-    - COM APIが利用できない環境での代替手段
-
 ## Installation
 
 Release版のバイナリは [Releases](https://github.com/zukio/FullScreenCover/releases/) からダウンロードできます。
@@ -80,23 +53,27 @@ Release版のバイナリは [Releases](https://github.com/zukio/FullScreenCover
 - **全ディスプレイ**: 接続されている全てのディスプレイに表示
 - **指定ディスプレイ**: 特定のディスプレイを選択して表示
 
-### 動画再生中の抑制機能
+### 動画プレイヤー検出
 
-以下の状況では自動的にスクリーンセーバーを抑制します：
+- **対応プレイヤー**: VLC, MPC-HC, MPC-BE, KMPlayer, PotPlayer, mpv, Windows Media Player, Windows 11 メディア プレーヤー等
+- **条件**:
+  - フルスクリーン表示時・映像再生中のみ抑制
+  - 大きなウィンドウ（1200x800以上）でも抑制
 
-- **動画プレイヤー検出**
-  - **対応プレイヤー**: VLC, MPC-HC, MPC-BE, KMPlayer, PotPlayer, Windows Media Player, Movies & TV
-  - **条件**: フルスクリーン表示時・映像再生中のみ抑制
+### ブラウザ動画再生
 
-- **ブラウザ動画再生**
+- **対応ブラウザ**: Chrome, Firefox, Edge, その他
+- **対応サイト**: YouTube, Netflix, Amazon Prime, Twitch, Vimeo等
+- **条件**: 動画サイトでフルスクリーン再生時
 
-  - **対応ブラウザ**: Chrome, Firefox, Edge, その他
-  - **条件**: YouTubeなどの動画サイトでフルスクリーン再生時
+### プレゼンテーション
 
-- **プレゼンテーション**
-
-  - **対応アプリ**: Microsoft PowerPoint
-  - **条件**: スライドショーモード + 動画スライド再生中のみ抑制
+- **対応アプリ**: Microsoft PowerPoint
+- **条件**:
+  - **第1優先**: PowerPoint COM APIによる動画オブジェクト検出（推奨）
+    - スライドショーモード +メディアオブジェクトが**再生中**の場合に抑制
+  - **フォールバック**: スライドショーモード + CPU使用率10%以上（従来方式）
+    - COM APIが利用できない環境での代替手段
 
 ## 開発
 
