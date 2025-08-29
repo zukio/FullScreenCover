@@ -57,6 +57,19 @@ Release版のバイナリは [Releases](https://github.com/zukio/FullScreenCover
 - **動画抑制設定切替**: 動画再生中のスクリーンセーバー抑制機能のON/OFF
 - **アプリケーション終了**: 安全な終了処理
 
+### メディアファイル選択機能
+
+- ドットバイドットで表示されます
+
+#### 画像 対応ファイル形式
+
+- PNG, JPG, JPEG, BMP
+
+#### 動画 対応ファイル形式
+
+- MP4, AVI, MOV
+- 音声付き動画選択可（映像のみが再生され、音声は出力されません。）
+
 ### ディスプレイ選択機能
 
 複数ディスプレイ環境で、スクリーンセーバーを表示するディスプレイを選択できます：
@@ -67,34 +80,13 @@ Release版のバイナリは [Releases](https://github.com/zukio/FullScreenCover
 - **全ディスプレイ**: 接続されている全てのディスプレイに表示
 - **指定ディスプレイ**: 特定のディスプレイを選択して表示
 
-#### ディスプレイ情報
-
-- 各ディスプレイの解像度と位置が自動検出されます
-- プライマリディスプレイが明確に表示されます
-- 例：「ディスプレイ 1 (プライマリ) - 1920x1080」「ディスプレイ 2 - 2560x1440」
-
-詳細については [DISPLAY_FEATURES.md](DISPLAY_FEATURES.md) をご覧ください。
-
-### 対応ファイル形式
-
-#### 画像
-
-- PNG, JPG, JPEG, BMP
-- フルスクリーン表示
-- ドットバイドットで表示されます
-
-#### 動画
-
-- MP4, AVI, MOV
-- 音声付き動画対応
-
-##### 動画再生中の抑制機能
+### 動画再生中の抑制機能
 
 以下の状況では自動的にスクリーンセーバーを抑制します：
 
 - **動画プレイヤー検出**
   - **対応プレイヤー**: VLC, MPC-HC, MPC-BE, KMPlayer, PotPlayer, Windows Media Player, Movies & TV
-  - **条件**: フルスクリーン表示時のみ抑制
+  - **条件**: フルスクリーン表示時・映像再生中のみ抑制
 
 - **ブラウザ動画再生**
 
@@ -104,7 +96,7 @@ Release版のバイナリは [Releases](https://github.com/zukio/FullScreenCover
 - **プレゼンテーション**
 
   - **対応アプリ**: Microsoft PowerPoint
-  - **条件**: スライドショーモード + CPU使用率10%以上（動画スライド再生中）
+  - **条件**: スライドショーモード + 動画スライド再生中のみ抑制
 
 ## 開発
 
@@ -152,20 +144,20 @@ Release版のバイナリは [Releases](https://github.com/zukio/FullScreenCover
 
 ```
 FullScreenCover/
-├── main.py                    # メインアプリケーション
-├── screensaver.py            # スクリーンセーバー表示ロジック
-├── tray_menu.py              # タスクトレイメニュー
-├── config.json               # 設定ファイル
-├── requirements.txt          # Python依存関係
-├── assets/                   # アセットファイル
+├── main.py                  # メインアプリケーション
+├── screensaver.py           # スクリーンセーバー表示ロジック
+├── tray_menu.py             # タスクトレイメニュー
+├── config.json              # 設定ファイル
+├── requirements.txt         # Python依存関係
+├── assets/                  # アセットファイル
 │   ├── icon.ico             # タスクトレイアイコン
 │   └── image.png            # デフォルト画像
-├── modules/                  # モジュール群
+├── modules/                 # モジュール群
 │   ├── audio_devices.py     # 音声制御
 │   ├── lock.py              # 抑制機能・プロセス管理
 │   ├── utils/               # ユーティリティ
 │   └── communication/       # 通信関連
-└── tests/                   # テストスクリプト
+└── backup/                  # テストスクリプトなど
 ```
 
 ### 主要コンポーネント
@@ -197,26 +189,21 @@ FullScreenCover/
 
 ```json
 {
-  "interval": 300,
-  "media_file": "path/to/your/image_or_video.png",
-  "mute_on_screensaver": true,
-  "suppress_during_video": true
+ "interval": 5,
+ "media_file": "assets/background.jpg",
+ "mute_on_screensaver": true,
+ "suppress_during_video": false,
+ "enable_presentation_mode": true,
+ "presentation_features": {
+  "disable_screensaver": true,
+  "prevent_sleep": true,
+  "silent_notifications": true,
+  "block_notifications": true
+ },
+ "suppress_large_window": false,
+ "display_mode": "specific",
+ "display_index": 0
 }
-```
-
-### テスト
-
-各機能のテストスクリプトが用意されています：
-
-```bash
-# 機能全体のテスト
-python test_features.py
-
-# 音量制御のテスト
-python test_volume.py
-
-# スクリーンセーバー表示のテスト
-python test_screensaver_display.py
 ```
 
 ## トラブルシューティング
@@ -253,7 +240,28 @@ pip install pycaw
 
 アプリケーションは詳細なログを出力します：
 
+#### ログ出力先
+
+- **コンソール**: INFO レベル以上のログをリアルタイムで表示
+- **ログファイル**: `logs/YYYY-MM-DD.log` にすべてのログレベルを記録
+
+> **注意**: アプリケーションを `C:\Program Files` などの権限が必要な場所に配置した場合、自動的にユーザーディレクトリ `C:\Users\[ユーザー名]\FullScreenCover\logs\` にログが保存されます。
+
+#### ログ内容
+
+- アプリケーションの起動・終了
+- 多重起動制御の状態
+- ディスプレイ検出情報
 - 現在のウィンドウ情報
-- アイドル時間、抑制状態
+- アイドル時間、抑制状態（DEBUG レベル）
 - 音量制御の状態変化
 - スクリーンセーバーの開始・終了
+- エラーや警告メッセージ
+
+#### ログレベル
+
+- **DEBUG**: 詳細なデバッグ情報（ファイルのみ）
+- **INFO**: 一般的な動作情報
+- **WARNING**: 警告メッセージ  
+- **ERROR**: エラーメッセージ
+- **CRITICAL**: 致命的エラー

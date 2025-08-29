@@ -3,13 +3,61 @@ import sys
 import threading
 import json
 import time
+import atexit
 from modules.utils.path_utils import get_idle_duration
 from modules.utils.display_utils import get_display_manager, get_display_by_index, get_primary_display
-from modules.lock import should_suppress_screensaver
+from modules.lock import should_suppress_screensaver, SingleInstanceWithAlert
 from modules.audio_devices import VolumeController
 from modules.presentation_mode import get_presentation_controller
+from modules.utils.logwriter import get_logger, log_info, log_error, log_warning, log_debug
 from tray_menu import TrayMenu
 from screensaver import show_screensaver
+
+
+# ログシステムを初期化
+logger = get_logger(enable_console=True, enable_file=True)
+
+# グローバル変数で多重起動制御インスタンスを管理
+singleton_instance = None
+
+
+def cleanup_on_exit():
+    """アプリケーション終了時のクリーンアップ"""
+    global singleton_instance
+    if singleton_instance:
+        singleton_instance.release()
+        log_info("多重起動制御リソースを解放しました")
+
+
+def main():
+    global singleton_instance
+
+    try:
+        # 多重起動制御を初期化
+        singleton_instance = SingleInstanceWithAlert(
+            'FullScreenCover', 'FullScreenCover')
+
+        # 多重起動チェック
+        if not singleton_instance.acquire():
+            # 既に起動中の場合、アラートが表示されてここで終了
+            return
+
+        log_info("FullScreenCover を開始します...")
+
+        # 終了時のクリーンアップを登録
+        atexit.register(cleanup_on_exit)
+
+        # メインアプリケーションを実行
+        controller = ScreensaverController()
+        controller.run()
+
+    except KeyboardInterrupt:
+        log_info("キーボード割り込みで終了")
+    except Exception as e:
+        log_error(f"メインエラー: {e}")
+    finally:
+        cleanup_on_exit()
+        log_info("アプリケーション終了")
 
 
 def get_resource_path(relative_path):
@@ -42,18 +90,18 @@ CONFIG_PATH = get_config_path()
 
 class ScreensaverController:
     def __init__(self):
-        print("ScreensaverController初期化開始")
+        log_info("ScreensaverController初期化開始")
 
         # ディスプレイマネージャーを初期化
         self.display_manager = get_display_manager()
-        print(f"検出されたディスプレイ数: {self.display_manager.get_display_count()}")
+        log_info(f"検出されたディスプレイ数: {self.display_manager.get_display_count()}")
         for display in self.display_manager.get_displays():
-            print(f"  {display}")
+            log_info(f"  {display}")
 
         self.load_config()
-        print("VolumeController初期化開始")
+        log_info("VolumeController初期化開始")
         self.volume_controller = VolumeController()
-        print("PresentationModeController初期化開始")
+        log_info("PresentationModeController初期化開始")
         # プレゼンテーションモードの制御
         presentation_enabled = self.config.get(
             'enable_presentation_mode', False)
@@ -72,7 +120,7 @@ class ScreensaverController:
 
         self.presentation_controller = get_presentation_controller(
             silent_mode=silent_mode, features_config=features_config)
-        print("TrayMenu初期化開始")
+        log_info("TrayMenu初期化開始")
         self.tray = TrayMenu(self)
         self.running = True
         self.stopping = False  # 停止処理フラグを追加
@@ -80,7 +128,7 @@ class ScreensaverController:
         self.monitor_thread = threading.Thread(
             target=self.monitor, daemon=True)
         self.monitor_thread.start()
-        print("ScreensaverController初期化完了")
+        log_info("ScreensaverController初期化完了")
 
     def load_config(self):
         try:
@@ -160,14 +208,14 @@ class ScreensaverController:
                     json.dumps(value)
                     serializable_config[key] = value
                 except (TypeError, ValueError):
-                    print(f"設定項目 '{key}' はJSONシリアライズできません。スキップします。")
+                    log_warning(f"設定項目 '{key}' はJSONシリアライズできません。スキップします。")
 
             with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
                 json.dump(serializable_config, f, indent=2, ensure_ascii=False)
             # 設定保存後、プレゼンテーションコントローラーを再初期化
             self.reinitialize_presentation_controller()
         except Exception as e:
-            print(f"設定保存エラー: {e}")
+            log_error(f"設定保存エラー: {e}")
 
     def reinitialize_presentation_controller(self):
         """プレゼンテーションコントローラーの再初期化"""
@@ -192,10 +240,10 @@ class ScreensaverController:
             # 新しい設定でコントローラーを再作成
             self.presentation_controller = get_presentation_controller(
                 silent_mode=silent_mode, features_config=features_config)
-            print(
+            log_info(
                 f"プレゼンテーションコントローラーを再初期化しました (enabled: {presentation_enabled}, silent: {silent_mode})")
         except Exception as e:
-            print(f"プレゼンテーションコントローラー再初期化エラー: {e}")
+            log_error(f"プレゼンテーションコントローラー再初期化エラー: {e}")
 
     def show_screensaver_with_mute(self, media_file):
         """ミュート機能付きスクリーンセーバー表示"""
@@ -223,12 +271,12 @@ class ScreensaverController:
                 self._show_on_all_displays(resolved_media_file)
             elif display_mode == 'specific' and display_index is not None:
                 # 指定されたディスプレイに表示
-                print(
+                log_info(
                     f"指定ディスプレイ {display_index + 1} でスクリーンセーバー表示: {resolved_media_file}")
                 show_screensaver(resolved_media_file, display_index)
             else:
                 # プライマリディスプレイに表示（デフォルト）
-                print(f"プライマリディスプレイでスクリーンセーバー表示: {resolved_media_file}")
+                log_info(f"プライマリディスプレイでスクリーンセーバー表示: {resolved_media_file}")
                 show_screensaver(resolved_media_file, None)
 
         finally:
@@ -241,19 +289,19 @@ class ScreensaverController:
         from screensaver import show_screensaver_on_all_displays_simultaneously
 
         displays = self.display_manager.get_displays()
-        print(f"全ディスプレイ（{len(displays)}台）でスクリーンセーバー表示: {media_file}")
+        log_info(f"全ディスプレイ（{len(displays)}台）でスクリーンセーバー表示: {media_file}")
 
         if len(displays) == 1:
             # ディスプレイが1台の場合は通常表示
             show_screensaver(media_file, displays[0].index)
         else:
             # 複数ディスプレイの場合、同時表示を使用
-            print("複数ディスプレイでの同時表示を開始...")
+            log_info("複数ディスプレイでの同時表示を開始...")
             show_screensaver_on_all_displays_simultaneously(
                 media_file, displays)
 
     def monitor(self):
-        print("モニタリング開始")
+        log_info("モニタリング開始")
         while self.running:
             try:
                 idle = get_idle_duration()
@@ -271,32 +319,32 @@ class ScreensaverController:
                     'suppress_during_video', True)
                 presentation_setting = self.config.get(
                     'enable_presentation_mode', False)
-                print(
+                log_debug(
                     f"idle={idle:.1f}, interval={self.config['interval']}, suppress={suppress}, showing={self.showing}, mute={mute_setting}, video_suppress={video_suppress_setting}, presentation={presentation_setting}")
 
                 if idle > self.config['interval'] and not suppress and not self.showing:
-                    print("スクリーンセーバー表示開始")
+                    log_info("スクリーンセーバー表示開始")
                     self.showing = True
                     try:
                         self.show_screensaver_with_mute(
                             self.config['media_file'])
                     except Exception as e:
-                        print(f"スクリーンセーバー表示エラー: {e}")
+                        log_error(f"スクリーンセーバー表示エラー: {e}")
                     finally:
                         self.showing = False
-                        print("スクリーンセーバー表示終了")
+                        log_info("スクリーンセーバー表示終了")
 
                 time.sleep(2)
             except Exception as e:
-                print(f"モニタリングエラー: {e}")
+                log_error(f"モニタリングエラー: {e}")
                 time.sleep(5)
-        print("モニタリング終了")
+        log_info("モニタリング終了")
 
     def stop(self):
         if self.stopping:
             return  # 既に停止処理中の場合は何もしない
 
-        print("停止処理開始")
+        log_info("停止処理開始")
         self.stopping = True
         self.running = False
 
@@ -305,17 +353,17 @@ class ScreensaverController:
             if hasattr(self, 'presentation_controller') and self.presentation_controller:
                 if self.presentation_controller.is_presentation_mode_active():
                     self.presentation_controller.disable_presentation_mode()
-                    print("プレゼンテーションモードを無効にしました")
+                    log_info("プレゼンテーションモードを無効にしました")
         except Exception as e:
-            print(f"プレゼンテーションモード停止エラー: {e}")
+            log_error(f"プレゼンテーション停止エラー: {e}")
 
         try:
             if hasattr(self, 'tray') and self.tray:
                 self.tray.stop()
         except Exception as e:
-            print(f"トレイ停止エラー: {e}")
+            log_error(f"トレイ停止エラー: {e}")
 
-        print("停止処理完了")
+        log_info("停止処理完了")
 
     def run(self):
         try:
@@ -324,19 +372,9 @@ class ScreensaverController:
         except KeyboardInterrupt:
             print("キーボード割り込み")
         except Exception as e:
-            print(f"実行エラー: {e}")
+            log_error(f"実行エラー: {e}")
         finally:
             self.stop()
-
-
-def main():
-    try:
-        controller = ScreensaverController()
-        controller.run()
-    except Exception as e:
-        print(f"メインエラー: {e}")
-    finally:
-        print("アプリケーション終了")
 
 
 if __name__ == '__main__':

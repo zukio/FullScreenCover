@@ -51,6 +51,149 @@ class SingleInstance:
             os.remove(self.lockfile)
 
 
+class SingleInstanceWithAlert:
+    """アラート表示機能付きの多重起動制御クラス"""
+
+    def __init__(self, lockname, app_name="FullScreenCover"):
+        self.lockfile = os.path.join(tempfile.gettempdir(), f'{lockname}.lock')
+        self.app_name = app_name
+        self.fp = None
+
+    def acquire(self):
+        """
+        多重起動制御を実行します。
+        既に起動中の場合はアラートを表示してFalseを返します。
+
+        Returns:
+            bool: True=起動可能, False=既に起動中
+        """
+        if os.path.exists(self.lockfile):
+            # 既存のPIDが有効かチェック
+            if self._is_pid_valid():
+                self._show_already_running_alert()
+                return False
+            else:
+                # 無効なPIDファイルを削除
+                try:
+                    os.remove(self.lockfile)
+                except OSError:
+                    pass
+
+        # ロックファイルを作成
+        try:
+            self.fp = open(self.lockfile, 'w')
+            self.fp.write(str(os.getpid()))
+            self.fp.flush()
+            return True
+        except Exception as e:
+            print(f"ロックファイル作成エラー: {e}")
+            return False
+
+    def _is_pid_valid(self):
+        """ロックファイル内のPIDが有効かどうかをチェック"""
+        try:
+            with open(self.lockfile, 'r') as f:
+                pid_str = f.read().strip()
+                if not pid_str:
+                    return False
+
+                pid = int(pid_str)
+
+                # PID 0は無効
+                if pid <= 0:
+                    return False
+
+                # プロセスが存在するかチェック
+                try:
+                    import psutil
+                    process = psutil.Process(pid)
+
+                    # プロセス名をチェック（Pythonまたは実行ファイル名を含む）
+                    process_name = process.name().lower()
+                    cmdline = ' '.join(process.cmdline()).lower()
+
+                    is_same_app = (
+                        'python' in process_name or
+                        'fullscreencover' in process_name or
+                        'fullscreencover' in cmdline or
+                        'main.py' in cmdline
+                    )
+
+                    return is_same_app and process.is_running()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    return False
+                except ImportError:
+                    # psutilが利用できない場合は、単純にPIDの存在をチェック
+                    try:
+                        os.kill(pid, 0)
+                        return True
+                    except OSError:
+                        return False
+
+        except (ValueError, FileNotFoundError, PermissionError):
+            return False
+
+    def _show_already_running_alert(self):
+        """既に起動中である旨のアラートを表示"""
+        try:
+            # tkinterを使用してアラートを表示
+            import tkinter as tk
+            from tkinter import messagebox
+
+            # 一時的なルートウィンドウを作成（非表示）
+            root = tk.Tk()
+            root.withdraw()  # ウィンドウを非表示にする
+            root.attributes('-topmost', True)  # 最前面に表示
+
+            # アラートメッセージ
+            message = f"{self.app_name} は既に起動しています。\n\n同時に複数のインスタンスを実行することはできません。"
+            title = f"{self.app_name} - 多重起動エラー"
+
+            # メッセージボックスを表示
+            messagebox.showwarning(title, message)
+
+            # ルートウィンドウを破棄
+            root.destroy()
+
+        except ImportError:
+            # tkinterが利用できない場合はコンソールメッセージのみ
+            print(f"\n{'='*50}")
+            print(f" {self.app_name} - 多重起動エラー")
+            print(f"{'='*50}")
+            print(f"{self.app_name} は既に起動しています。")
+            print("同時に複数のインスタンスを実行することはできません。")
+            print(f"{'='*50}")
+            input("何かキーを押して終了してください...")
+
+        except Exception as e:
+            # その他のエラーの場合もコンソールメッセージ
+            print(f"アラート表示エラー: {e}")
+            print(f"{self.app_name} は既に起動しています。")
+
+    def release(self):
+        """ロックファイルを削除"""
+        try:
+            if self.fp:
+                self.fp.close()
+                self.fp = None
+        except Exception:
+            pass
+
+        try:
+            if os.path.exists(self.lockfile):
+                os.remove(self.lockfile)
+        except Exception as e:
+            print(f"ロックファイル削除エラー: {e}")
+
+    def __enter__(self):
+        """コンテキストマネージャー対応"""
+        return self.acquire()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """コンテキストマネージャー対応"""
+        self.release()
+
+
 def get_foreground_window_info():
     """フォアグラウンドウィンドウの情報を取得"""
     if not WIN32_AVAILABLE:
