@@ -1,10 +1,8 @@
-aioconsole==0.8.1
 pystray
 Pillow
 pywin32
 psutil
 opencv-python
-ffpyplayer
 pycaw
 comtypes
 pynput
