@@ -33,7 +33,7 @@ class PresentationModeController:
         default_config = {
             'disable_screensaver': True,     # スクリーンセーバーを無効化
             'prevent_sleep': True,           # システムスリープを防止
-            'block_notifications': False,    # 通知をブロック（現在未実装）
+            'block_notifications': False,    # 通知をブロック
         }
 
         # 設定をマージ（設定ファイルからの高度な制御も可能）
@@ -134,7 +134,7 @@ class PresentationModeController:
                     success_count += 1
                     self._log_info("スクリーンセーバー無効化・スリープ防止を有効にしました")
 
-            # 2. 通知ブロック（将来実装予定）
+            # 2. 通知ブロック
             if self.features.get('block_notifications'):
                 total_features += 1
                 if self._enable_notification_blocking():
@@ -342,7 +342,7 @@ class PresentationModeController:
                     success_count += 1
                     self._log_info("電源管理制御を無効にしました")
 
-            # 2. 通知ブロック無効化（将来実装予定）
+            # 2. 通知ブロック無効化
             if self.features.get('block_notifications'):
                 total_features += 1
                 if self._disable_notification_blocking():
@@ -583,7 +583,7 @@ if __name__ == "__main__":
     custom_features = {
         'disable_screensaver': True,
         'prevent_sleep': False,  # スリープ防止は無効
-        'block_notifications': True,  # 通知ブロック有効（未実装だがテスト）
+        'block_notifications': True,  # 通知ブロック有効
     }
 
     set_presentation_features(custom_features)
